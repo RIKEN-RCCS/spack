@@ -4,7 +4,7 @@ spack:
   specs:
     - boost %gcc@13.2.0
     - cmake %gcc@13.2.0 +ownlibs
-    - darshan-util %gcc@13.2.0
+    - darshan-util@3.4.0 %gcc@13.2.0
     - global %gcc@13.2.0
     - gmt %gcc@13.2.0
     - gnuplot %gcc@13.2.0 +X ^gettext@0.21.1
