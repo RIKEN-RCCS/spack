@@ -21,7 +21,8 @@ class Fds(MakefilePackage):
     url = "https://github.com/firemodels/fds/archive/refs/tags/FDS-6.8.0.tar.gz"
     git = "https://github.com/firemodels/fds.git"
 
-    version("6.8.0", commit="886e0096535519b7358a3c4393c91da3caee5072")
+    version("6.9.1", commit="889da6ae08d08dae680f7c0d8de66a3ad1c65375")
+    version("6.8.0", commit="886e0096535519b7358a3c4393c91da3caee5072")    
     version("6.7.9", commit="ec52dee4274fcf994d358c8b0f883eec8f67e041")
     version("6.7.8", commit="fbf3e11eee06c89b85fcc936e592bcf27bb9827f")
     version("6.7.7", commit="fe0d4ef38f955b2a298ac9124ea3d8f085704edd")
@@ -58,17 +59,20 @@ class Fds(MakefilePackage):
 
     # Added compile and link options for aarch64 to make files
     patch("modmakefile_arm_6.7.7.patch", when="@:6.7.7 target=aarch64:")
-    patch("modmakefile_arm_6.7.9.patch", when="@6.7.8: target=aarch64:")
+    patch("modmakefile_arm_6.7.9.patch", when="@6.7.8:6.8.0 target=aarch64:")
     
     # Modifications for Fujitsu compilers that do not support Fortran2018 format
     patch("fixf18_6.7.7_fj.patch", when="@:6.7.7%fj")
     patch("fixf18_6.7.9_fj.patch", when="@6.7.8:6.7.9%fj")
-    patch("fixf18_6.8.0_fj.patch", when="@6.8.0:%fj")
+    patch("fixf18_6.8.0_fj.patch", when="@6.8.0%fj")
 
     # Modifications for gcc and fujitsu-mpi link error
     patch("fix_ompi_comm_op_eq_not_found_6.7.7.patch", when="@:6.7.7 %gcc ^fujitsu-mpi")
-    patch("fix_ompi_comm_op_eq_not_found_6.7.9.patch", when="@6.7.8: %gcc ^fujitsu-mpi")
+    patch("fix_ompi_comm_op_eq_not_found_6.7.9.patch", when="@6.7.8:6.8.0 %gcc ^fujitsu-mpi")
 
+    # Apply patch made by FOCUS
+    patch("focus-patch.fds6.9.1", when="@6.9.1%fj")
+    
     build_directory = "Build"
 
     def edit(self, spec, prefix):
