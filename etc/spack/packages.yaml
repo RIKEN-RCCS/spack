@@ -15,7 +15,7 @@
 # -------------------------------------------------------------------------
 packages:
   all:
-    compiler: [gcc, intel, pgi, clang, xl, nag, fj, aocc]
+    compiler: [gcc@14.1.0, gcc, intel, pgi, clang, xl, nag, fj, aocc]
     providers:
       awk: [gawk]
       blas: [openblas, amdblis]
@@ -68,4 +68,5 @@ packages:
     externals:
     - spec: "openmpi@4.1.5"
       prefix: /opt/amazon/openmpi
-
+  python:
+    require: "@3.11"

@@ -12,19 +12,13 @@ spack:
   - tmux
   - petsc ^openblas~ilp64
   - openbabel
-  - paraview+python~qt
-    #  - gcc +binutils
   - gnuplot
   - lammps
   - julia ^openblas+ilp64
-  - py-scipy
-  - py-numpy
-  - py-mpi4py
-  - py-matplotlib
-  - py-ase
-  - py-toml
-  - py-scikit-learn
-  - py-pandas
+  - cp2k
+  - cpmd+omp+mpi
+  - frontistr
+  - autodock-vina
   concretizer:
     unify: when_possible
   view:

@@ -1,0 +1,4 @@
+mirrors:
+  build_cache_https:
+    url: https://spack-mirror.r-ccs.riken.jp
+    signed: false
