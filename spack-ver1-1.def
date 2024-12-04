@@ -1,0 +1,62 @@
+Bootstrap: docker
+From: redhat/ubi8
+Stage: build
+
+%setup
+  mkdir ${SINGULARITY_ROOTFS}/opt/amazon
+
+%post
+  dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+  dnf -y install git gcc* make xz patch bzip2* autoconf* automake libtool* libevent*
+  dnf -y install binutils ctags curl findutils gdb glibc-devel gnupg2 hostname iproute perl-Fedora-VSP perl-generators perl-Sys-Syslog pkgconf* python39 python3-boto3 python3-pip python3-setuptools redhat-lsb-core redhat-rpm-config source-highlight strace unzip
+
+  cd /opt
+  git clone https://github.com/RIKEN-RCCS/spack.git
+  cd spack
+  git checkout virtual_fugaku
+
+  . ./share/spack/setup-env.sh
+
+  spack install hwloc
+  HWLOC=$(find /opt/spack/opt/spack/linux-rhel8-neoverse_v1 -name 'libhwloc.so.15.*' | tail -n 1)
+  ln -s ${HWLOC} /usr/lib64
+  ln -s ${HWLOC} /usr/lib64/libhwloc.so
+  ln -s ${HWLOC} /usr/lib64/libhwloc.so.15
+
+  spack install gcc+binutils
+  spack load gcc
+  spack compiler find
+
+  spack env create virtual_fugaku_python etc/spack/spack_python.yaml
+  spack -e virtual_fugaku_python concretize
+  spack -e virtual_fugaku_python install
+
+  spack env create --include-concrete virtual_fugaku_python virtual_fugaku etc/spack/spack.yaml
+  spack -e virtual_fugaku add gcc
+  spack -e virtual_fugaku concretize
+  spack -e virtual_fugaku install
+
+  spack gc -y
+
+Bootstrap: docker
+From: redhat/ubi8
+Stage: final
+
+%setup
+  mkdir ${SINGULARITY_ROOTFS}/opt/amazon
+
+%files from build
+  /opt/spack
+  /usr/lib64/libhwloc.so.15.6.4
+
+%post
+  dnf -y install libevent*
+  dnf clean all
+
+  cd /usr/lib64
+  ln -s libhwloc.so.15.6.4 libhwloc.so
+
+  . /opt/spack/share/spack/setup-env.sh
+  spack env activate --sh virtual_fugaku >> $SINGULARITY_ENVIRONMENT
+  spack clean -a
+
