@@ -14,6 +14,7 @@ spack:
       - bedtools2 %fj
       - biobambam2 %fj
       - boost %fj
+      - braket %fj ^boost@1.80.0
       - bwa %fj
       - cbc %fj
       - cblas %fj
@@ -81,6 +82,7 @@ spack:
       - py-toml %fj
       - py-xarray %fj
       - py-pytoml %fj
+      - qulacs %fj
       - r %fj
       - raja %fj
       - rdkit %fj
