@@ -622,13 +622,19 @@ packages:
       - spec: "zlib@1.2.11 arch=linux-rhel8-skylake_avx512"
         prefix: /usr
     buildable: False
-  # pmlib: had problems with spack. so far binary packages only. 2023/3/20 mikami
+  # pmlib: had problems with spack. so far binary packages only. 2024/10/20 mikami
   pmlib:
     externals:
-      - spec: "pmlib@9.0-clang-precise arch=linux-rhel8-a64fx"
-        prefix: /vol0004/apps/oss/pmlib-v9.0/9.0-clang-precise
-      - spec: "pmlib@9.0-clang-power arch=linux-rhel8-a64fx"
-        prefix: /vol0004/apps/oss/pmlib-v9.0/9.0-clang-power
-      - spec: "pmlib@9.0-trad-power arch=linux-rhel8-a64fx"
-        prefix: /vol0004/apps/oss/pmlib-v9.0/9.0-trad-power
+      - spec: "pmlib@9.2-clang arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v9.2/fugaku-clang
+      - spec: "pmlib@9.2-trad arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v9.2/fugaku-trad
+      - spec: "pmlib@10.0-clang arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v10.0/fugaku-clang
+      - spec: "pmlib@10.0-trad arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v10.0/fugaku-trad
+      - spec: "pmlib@10.0-pybind arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v10.0/fugaku-pybind
+      # - spec: "pmlib@9.0-clang-precise arch=linux-rhel8-a64fx"
+      #   prefix: /vol0004/apps/oss/pmlib-v9.0/9.0-clang-precise
     buildable: False

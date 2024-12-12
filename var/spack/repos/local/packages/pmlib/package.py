@@ -14,13 +14,25 @@ class Pmlib(Package):
        See Readme.md in the development repository https://github.com/mikami3heart/PMlib .
     """
 
-    homepage = "https://github.com/avr-aics-riken/PMlib"
+    homepage = "https://github.com/mikami3heart/PMlib"
     has_code = False
 
-    version('9.0-clang-precise')
-    version('9.0-clang-power')
-    version('9.0-trad-power')
+    version('9.2-clang')
+    version('9.2-trad')
+    version('10.0-clang')
+    version('10.0-trad')
+    version('10.0-pybind')
 
     def install(self, spec, prefix):
         ## PMlib source programs and native installation scripts are availale from the homepage
         pass
+
+    def setup_run_environment(self, env):
+        env.set("PMLIB_DIR", self.prefix)
+        env.prepend_path("C_INCLUDE_PATH", self.prefix.include)
+        env.prepend_path("CPLUS_INCLUDE_PATH", self.prefix.include)
+        env.prepend_path("LD_LIBRARY_PATH", self.prefix.lib)
+        #   if version == Version("10.0-pybind"):
+        env.prepend_path("PYTHONPATH", self.prefix.lib)
+
+
