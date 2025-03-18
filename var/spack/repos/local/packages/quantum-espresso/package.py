@@ -2,6 +2,7 @@
 # Spack Project Developers. See the top-level COPYRIGHT file for details.
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
+import os
 import spack.build_systems.cmake
 import spack.build_systems.generic
 from spack.package import *
@@ -423,6 +424,32 @@ class QuantumEspresso(CMakePackage, Package):
     # gipaw.x will only be installed with cmake if the qe-gipaw version is >= 5c4a4ce.
     patch("gipaw-eccee44.patch", when="@7.2+gipaw build_system=cmake")
 
+    def test_QuantumEspresso(self):
+        test_dir = self.test_suite.current_test_data_dir
+        test_file = join_path(test_dir, "electric.in")
+        os.chdir(test_dir)
+        env["OMP_NUM_THREADS"] = "4"
+        env["ESPRESSO_PSEUDO"] = os.getcwd()
+        opts = []
+        exe_name = "wget"
+        opts.extend(["https://pseudopotentials.quantum-espresso.org/upf_files/Si.pbe-rrkj.UPF"])
+        wgt = which(exe_name)
+        out = wgt(*opts, output=str.split, error=str.split)
+
+        opts = []
+        if self.spec.satisfies("+mpi"):
+            exe_name = self.spec["mpi"].prefix.bin.mpirun
+            opts.extend(["-n", "4"])
+            opts.append(join_path(self.prefix.bin, "pw.x"))
+        else:
+            exe_name = "pw.x"
+        opts.append("-in")
+        opts.append("electric.in")
+        #opts.append(test_file)
+        qe = which(exe_name)
+        out = qe(*opts, output=str.split, error=str.split)
+        assert "JOB DONE." in out
+
 
 class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
     def cmake_args(self):
@@ -457,7 +484,8 @@ class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
             cmake_args.append(self.define("CMAKE_Fortran_COMPILER", spec["mpi"].mpifc))
 
         if "%gcc@14.1.0" in spec:
-            cmake_args.append(self.define("CMAKE_Fortran_FLAGS", "-O3 -mcpu=neoverse-n1"))
+            if spec.target == "neoverse_v1":
+                cmake_args.append(self.define("CMAKE_Fortran_FLAGS", "-O3 -mcpu=neoverse-n1"))
 
         if not spec.satisfies("hdf5=none"):
             cmake_args.append(self.define("QE_ENABLE_HDF5", True))

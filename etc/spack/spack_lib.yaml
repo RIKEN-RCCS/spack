@@ -1,0 +1,11 @@
+spack:
+  specs:
+  - netlib-lapack
+  - zlib
+  concretizer:
+    unify: when_possible
+  view:
+    default:
+      root: .spack-env/view
+      projections:
+        all: "{name}-{version}-{hash:7}"

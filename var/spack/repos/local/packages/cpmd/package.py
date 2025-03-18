@@ -53,7 +53,7 @@ class Cpmd(MakefilePackage):
             cp.filter("-fopenmp", self.compiler.openmp_flag)
 
         # lapack
-        cp.filter("LIBS=.+", "LIBS='{0}'".format(spec["lapack"].libs.ld_flags))
+        cp.filter("LIBS=.+", "LIBS='{0} {1}'".format(spec["lapack"].libs.ld_flags, spec["blas"].libs.ld_flags))
 
         # LFLAGS
         cp.filter("'-static '", "")

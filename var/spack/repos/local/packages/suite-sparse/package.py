@@ -174,7 +174,7 @@ class SuiteSparse(Package):
             "CUDA=no",
             f"CUDA_PATH={spec['cuda'].prefix if '+cuda' in spec else ''}",
             f"CFOPENMP={self.compiler.openmp_flag if '+openmp' in spec else ''}",
-            f"CFLAGS={'-O3 -mcpu=neoverse-n1' if '%gcc@14.1.0' in spec else '-O3'} {cc_pic_flag}",
+            f"CFLAGS={'-O3 -mcpu=neoverse-n1' if '%gcc@14.1.0' in spec and 'target=neoverse_v1' in spec else '-O3'} {cc_pic_flag}",
             # Both FFLAGS and F77FLAGS are used in SuiteSparse makefiles;
             # FFLAGS is used in CHOLMOD, F77FLAGS is used in AMD and UMFPACK.
             f"FFLAGS={f77_pic_flag}",

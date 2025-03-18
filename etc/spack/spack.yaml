@@ -1,24 +1,67 @@
 spack:
   specs:
-  - genesis
-  - scale
-  - gromacs
-  - openfoam
-  - openfoam-org
-  - quantum-espresso
-  - metis
-  - parmetis
-  - gsl
-  - tmux
-  - petsc ^openblas~ilp64
-  - openbabel
-  - gnuplot
-  - lammps
-  - julia ^openblas+ilp64
-  - cp2k
-  - cpmd+omp+mpi
-  - frontistr
   - autodock-vina
+  - cpmd+omp+mpi
+  - cp2k smm=libsmm ^openblas~ilp64
+  - darshan-runtime
+  - fds
+  - ffmpeg@5.1.4
+  - frontistr ^openblas~ilp64
+  - genesis
+  - gnuplot
+  - gromacs ^openblas~ilp64
+  - grads~hdf4
+  - gsl
+  - julia ^openblas+ilp64 ^llvm+python
+  - lammps+python
+  - openbabel
+  - openfoam ^libcatalyst+mpi ^adios2+python
+  - openfoam-org
+  - openmx
+  - petsc ^openblas~ilp64
+  - povray~mkl
+  - quantum-espresso ^openblas~ilp64
+  - salmon-tddft+mpi+scalapack
+  - scale
+  - tmux
+  - wrf build_type=dm+sm
+  - paraview+python~qt
+  - py-tensorflow~cuda+mpi
+  - py-tensorflow-estimator
+  - py-tensorflow-probability@0.22
+  - py-torch~cuda
+  - py-botorch
+  - py-efficientnet-pytorch
+  - py-gpytorch
+  - py-pytorch-gradual-warmup-lr
+  - py-pytorch-lightning
+  - py-pytorch-sphinx-theme
+  - py-segmentation-models-pytorch
+  - py-torch-cluster
+  - py-torchdata
+  - py-torchdiffeq
+  - py-torchfile
+  - py-torch-geometric
+  - py-torchmetrics
+  - py-torch-nvidia-apex~cuda
+  - py-torch-scatter
+  - py-torch-sparse
+  - py-torch-spline-conv
+  - py-torchsummary
+  - py-torchtext
+  - py-torchvision
+  - py-vector-quantize-pytorch
+  - py-torchgeo
+  - py-torchaudio
+  - py-scipy
+  - py-mpi4py
+  - py-matplotlib
+  - py-ase
+  - py-toml
+  - py-scikit-learn
+  - py-pandas
+  - py-netcdf4
+  - py-xarray
   concretizer:
     unify: when_possible
   view:

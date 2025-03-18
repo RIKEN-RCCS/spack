@@ -389,3 +389,18 @@ class Julia(MakefilePackage):
 
         with open("Make.user", "w") as f:
             f.write("\n".join(options) + "\n")
+
+    def test_julia(self):
+        test_dir = self.test_suite.current_test_data_dir
+        opts = []
+        opts.append("test.jl")
+        exjl = which("julia")
+        os.chdir(test_dir)
+        out = exjl(*opts, output=str.split, error=str.split)
+        #assert "[-1.0, 2.0, 2.0]" in out
+        expected = [
+            "-1.0, 2.0, 2.0",
+            "-1.0, 3.0"
+        ]
+        check_outputs(expected, out)
+

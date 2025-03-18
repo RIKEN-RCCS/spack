@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
 import os
+import time
 
 from spack.package import *
 
@@ -95,3 +96,41 @@ class Scale(MakefilePackage):
         install_tree("lib", prefix.lib)
         install_tree("doc", prefix.share.docs)
         install_tree(os.path.join("scale-rm", "test"), os.path.join(prefix.share, "test"))
+
+    def test_scale(self):
+        test_dir = self.test_suite.current_test_data_dir
+        test_file = join_path(test_dir, "init_R20kmDX500m.conf")
+        opts = []
+        exe_name = self.spec["mpi"].prefix.bin.mpirun
+        opts.extend(["-n", "2"])
+        opts.append(join_path(self.prefix.bin, "scale-rm_init"))
+        opts.append(test_file)
+        scale = which(exe_name)
+        os.chdir(test_dir)
+        out = scale(*opts, output=str.split, error=str.split)
+        expected = [
+            "End   Launch System for SCALE-RM",
+        ]
+        check_outputs(expected, out)
+
+        test_file = join_path(test_dir, "run_R20kmDX500m.conf")
+        opts = []
+        exe_name = self.spec["mpi"].prefix.bin.mpirun
+        opts.extend(["-n", "2"])
+        opts.append(join_path(self.prefix.bin, "scale-rm"))
+        opts.append(test_file)
+        scale = which(exe_name)
+        os.chdir(test_dir)
+        out = scale(*opts, output=str.split, error=str.split)
+        expected = [
+            "End   Launch System for SCALE-RM",
+        ]
+        check_outputs(expected, out)
+
+        test_file = join_path(test_dir, "LOG.pe000000")
+        opts = []
+        opts.append("exe_test.py")
+        scale = which("python3")
+        os.chdir(test_dir)
+        out = scale(*opts, output=str.split, error=str.split)
+        assert "SCALE test Passed" in out

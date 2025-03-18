@@ -141,7 +141,7 @@ class Genesis(AutotoolsPackage, CudaPackage):
         env.set("F77", self.spec["mpi"].mpif77, force=True)
         env.set("CC", self.spec["mpi"].mpicc, force=True)
         env.set("CXX", self.spec["mpi"].mpicxx, force=True)
-        env.set("LAPACK_LIBS", self.spec["lapack"].libs.ld_flags)
+        env.set("LAPACK_LIBS", self.spec["lapack"].libs.ld_flags + " " + self.spec["blas"].libs.ld_flags)
         if "+cuda" in self.spec:
             cuda_arch = self.spec.variants["cuda_arch"].value
             cuda_gencode = " ".join(self.cuda_flags(cuda_arch))
