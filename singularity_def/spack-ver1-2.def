@@ -1,0 +1,64 @@
+Bootstrap: docker
+From: redhat/ubi8
+Stage: build
+
+%setup
+  mkdir ${SINGULARITY_ROOTFS}/opt/amazon
+
+%post
+  dnf -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+  dnf -y install git gcc* make xz patch bzip2* autoconf* automake libtool* libevent*
+  dnf -y install binutils ctags curl findutils gdb glibc-devel gnupg2 hostname iproute perl-Fedora-VSP perl-generators perl-Sys-Syslog pkgconf* python3-boto3 python3.11 python3.11-pip python3.11-setuptools redhat-lsb-core redhat-rpm-config source-highlight strace unzip
+
+  cd /opt
+  git clone https://github.com/RIKEN-RCCS/spack.git
+  cd spack
+  git checkout virtual_fugaku
+
+  . ./share/spack/setup-env.sh
+
+  spack install hwloc
+  HWLOC=$(find /opt/spack/opt/spack/linux-rhel8-neoverse_v1 -name 'libhwloc.so.15.*' | tail -n 1)
+  ln -s ${HWLOC} /usr/lib64
+  ln -s ${HWLOC} /usr/lib64/libhwloc.so
+  ln -s ${HWLOC} /usr/lib64/libhwloc.so.15
+
+  spack install gcc+binutils
+  spack load gcc
+  spack compiler find
+
+  spack env create virtual_fugaku_app etc/spack/spack.yaml
+  spack -e virtual_fugaku_app concretize
+  spack -e virtual_fugaku_app install
+  spack env create --include-concrete virtual_fugaku_app virtual_fugaku etc/spack/spack_lib.yaml
+  spack -e virtual_fugaku add gcc
+  spack -e virtual_fugaku concretize
+  spack -e virtual_fugaku install
+  spack mark -e py-pip ninja zlib
+
+  spack gc -y
+  spack clean -a
+
+Bootstrap: docker
+From: redhat/ubi8
+Stage: final
+
+%setup
+  mkdir ${SINGULARITY_ROOTFS}/opt/amazon
+
+%files from build
+  /opt/spack
+  /usr/lib64/libhwloc.so.15.6.4
+
+%post
+  dnf -y install bzip2* cmake curl gcc* git glibc-devel libevent* libtool* make pkgconf* patch unzip xz zlib zlib-devel
+  dnf clean all
+
+  cd /usr/lib64
+  ln -s libhwloc.so.15.6.4 libhwloc.so
+
+  . /opt/spack/share/spack/setup-env.sh
+  spack env activate --sh virtual_fugaku >> $SINGULARITY_ENVIRONMENT
+  echo 'export LIBRARY_PATH=/usr/lib:/usr/lib64:/opt/amazon/efa/lib64:$LIBRARY_PATH' >> $SINGULARITY_ENVIRONMENT
+  echo 'export LD_LIBRARY_PATH=/usr/lib:/usr/lib64:/opt/amazon/efa/lib64:$LD_LIBRARY_PATH' >> $SINGULARITY_ENVIRONMENT
+  spack clean -a
