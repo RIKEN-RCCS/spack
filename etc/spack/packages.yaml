@@ -66,6 +66,11 @@ packages:
     permissions:
       read: world
       write: group
+    require:
+      - "+omp"
+      - "+openmp"
+      - "+mpi"
+# -------------------------------------------------------------------------
   cce:
     buildable: false
   cray-fftw:
@@ -111,12 +116,6 @@ packages:
     require:
     - spec: ldflags="--linkfortran -SSL2 -Kopenmp"
       when: "%fj"
-# -------------------------------------------------------------------------
-  all:
-    require:
-      - "+omp"
-      - "+openmp"
-      - "+mpi"
 # -------------------------------------------------------------------------
   fj:
     buildable: false
@@ -167,7 +166,7 @@ packages:
             LD_LIBRARY_PATH: /opt/FJSVxtclanga/tcsds-1.2.39/lib64
         extra_rpaths: []
 # -------------------------------------------------------------------------
-gcc:
+  gcc:
     externals:
     - spec: gcc@8.5.0 languages='c,c++,fortran'
       prefix: /usr
