@@ -118,3 +118,62 @@ packages:
       - "+openmp"
       - "+mpi"
 # -------------------------------------------------------------------------
+  fj:
+    buildable: false
+    externals:
+    - spec: fj@4.12.0
+      prefix: /opt/FJSVxtclanga/tcsds-1.2.41
+      extra_attributes:
+        compilers:
+          c: /opt/FJSVxtclanga/tcsds-1.2.41/bin/fcc
+          cxx: /opt/FJSVxtclanga/tcsds-1.2.41/bin/FCC
+          fortran: /opt/FJSVxtclanga/tcsds-1.2.41/bin/frt
+        environment:
+          set:
+            fcc_ENV: -Nclang
+            FCC_ENV: -Nclang
+          prepend_path:
+            PATH: /opt/FJSVxtclanga/tcsds-1.2.41/bin
+            LD_LIBRARY_PATH: /opt/FJSVxtclanga/tcsds-1.2.41/lib64
+        extra_rpaths: []
+    - spec: fj@4.11.2
+      prefix: /opt/FJSVxtclanga/tcsds-1.2.40
+      extra_attributes:
+        compilers:
+          c: /opt/FJSVxtclanga/tcsds-1.2.40/bin/fcc
+          cxx: /opt/FJSVxtclanga/tcsds-1.2.40/bin/FCC
+          fortran: /opt/FJSVxtclanga/tcsds-1.2.40/bin/frt
+        environment:
+          set:
+            fcc_ENV: -Nclang
+            FCC_ENV: -Nclang
+          prepend_path:
+            PATH: /opt/FJSVxtclanga/tcsds-1.2.40/bin
+            LD_LIBRARY_PATH: /opt/FJSVxtclanga/tcsds-1.2.40/lib64
+        extra_rpaths: []
+    - spec: fj@4.11.1
+      prefix: /opt/FJSVxtclanga/tcsds-1.2.39
+      extra_attributes:
+        compilers:
+          c: /opt/FJSVxtclanga/tcsds-1.2.39/bin/fcc
+          cxx: /opt/FJSVxtclanga/tcsds-1.2.39/bin/FCC
+          fortran: /opt/FJSVxtclanga/tcsds-1.2.39/bin/frt
+        environment:
+          set:
+            fcc_ENV: -Nclang
+            FCC_ENV: -Nclang
+          prepend_path:
+            PATH: /opt/FJSVxtclanga/tcsds-1.2.39/bin
+            LD_LIBRARY_PATH: /opt/FJSVxtclanga/tcsds-1.2.39/lib64
+        extra_rpaths: []
+# -------------------------------------------------------------------------
+gcc:
+    externals:
+    - spec: gcc@8.5.0 languages='c,c++,fortran'
+      prefix: /usr
+      extra_attributes:
+        compilers:
+          c: /usr/bin/gcc
+          cxx: /usr/bin/g++
+          fortran: /usr/bin/gfortran
+# -------------------------------------------------------------------------
