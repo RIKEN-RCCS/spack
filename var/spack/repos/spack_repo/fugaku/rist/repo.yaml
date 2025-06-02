@@ -1,2 +1,3 @@
 repo:
   namespace: fugaku.rist
+  api: v2.0

@@ -1,2 +1,3 @@
 repo:
   namespace: fugaku.update
+  api: v2.0

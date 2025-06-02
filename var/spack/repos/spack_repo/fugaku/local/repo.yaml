@@ -1,2 +1,4 @@
 repo:
   namespace: fugaku.local
+  api: v2.0
+  
