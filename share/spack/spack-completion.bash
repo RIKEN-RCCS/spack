@@ -219,7 +219,7 @@ _mirrors() {
 _repos() {
     if [[ -z "${SPACK_REPOS:-}" ]]
     then
-        SPACK_REPOS="$(spack repo list | awk '{print $1}')"
+        SPACK_REPOS="$(spack repo list --names)"
     fi
     SPACK_COMPREPLY="$SPACK_REPOS"
 }
@@ -400,7 +400,7 @@ _spack() {
     then
         SPACK_COMPREPLY="-h --help -H --all-help --color -c --config -C --config-scope -d --debug --timestamp --pdb -e --env -D --env-dir -E --no-env --use-env-repo -k --insecure -l --enable-locks -L --disable-locks -m --mock -b --bootstrap -p --profile --sorted-profile --lines -v --verbose --stacktrace -t --backtrace -V --version --print-shell-vars"
     else
-        SPACK_COMPREPLY="add arch audit blame bootstrap build-env buildcache cd change checksum ci clean clone commands compiler compilers concretize concretise config containerize containerise create debug deconcretize dependencies dependents deprecate dev-build develop diff docs edit env extensions external fetch find gc gpg graph help info install license list load location log-parse logs maintainers make-installer mark mirror module patch pkg providers pydoc python reindex remove rm repo resource restage solve spec stage style tags test test-env tutorial undevelop uninstall unit-test unload url verify versions view"
+        SPACK_COMPREPLY="add arch audit blame bootstrap build-env buildcache cd change checksum ci clean commands compiler compilers concretize concretise config containerize containerise create debug deconcretize dependencies dependents deprecate dev-build develop diff docs edit env extensions external fetch find gc gpg graph help info install license list load location log-parse logs maintainers make-installer mark mirror module patch pkg providers pydoc python reindex remove rm repo resource restage solve spec stage style tags test test-env tutorial undevelop uninstall unit-test unload url verify versions view"
     fi
 }
 
@@ -663,7 +663,7 @@ _spack_buildcache_migrate() {
 _spack_cd() {
     if $list_options
     then
-        SPACK_COMPREPLY="-h --help -m --module-dir -r --spack-root -i --install-dir -p --package-dir -P --packages -s --stage-dir -S --stages -c --source-dir -b --build-dir -e --env --first"
+        SPACK_COMPREPLY="-h --help -m --module-dir -r --spack-root -i --install-dir -p --package-dir --repo --packages -P -s --stage-dir -S --stages -c --source-dir -b --build-dir -e --env --first"
     else
         _all_packages
     fi
@@ -735,15 +735,6 @@ _spack_clean() {
     fi
 }
 
-_spack_clone() {
-    if $list_options
-    then
-        SPACK_COMPREPLY="-h --help -r --remote"
-    else
-        SPACK_COMPREPLY=""
-    fi
-}
-
 _spack_commands() {
     if $list_options
     then
@@ -799,11 +790,11 @@ _spack_compiler_rm() {
 }
 
 _spack_compiler_list() {
-    SPACK_COMPREPLY="-h --help --scope"
+    SPACK_COMPREPLY="-h --help --scope --remote"
 }
 
 _spack_compiler_ls() {
-    SPACK_COMPREPLY="-h --help --scope"
+    SPACK_COMPREPLY="-h --help --scope --remote"
 }
 
 _spack_compiler_info() {
@@ -816,7 +807,7 @@ _spack_compiler_info() {
 }
 
 _spack_compilers() {
-    SPACK_COMPREPLY="-h --help --scope"
+    SPACK_COMPREPLY="-h --help --scope --remote"
 }
 
 _spack_concretize() {
@@ -1401,7 +1392,7 @@ _spack_load() {
 _spack_location() {
     if $list_options
     then
-        SPACK_COMPREPLY="-h --help -m --module-dir -r --spack-root -i --install-dir -p --package-dir -P --packages -s --stage-dir -S --stages -c --source-dir -b --build-dir -e --env --first"
+        SPACK_COMPREPLY="-h --help -m --module-dir -r --spack-root -i --install-dir -p --package-dir --repo --packages -P -s --stage-dir -S --stages -c --source-dir -b --build-dir -e --env --first"
     else
         _all_packages
     fi
@@ -1793,7 +1784,7 @@ _spack_repo() {
     then
         SPACK_COMPREPLY="-h --help"
     else
-        SPACK_COMPREPLY="create list add remove rm migrate"
+        SPACK_COMPREPLY="create list ls add set remove rm migrate"
     fi
 }
 
@@ -1807,15 +1798,28 @@ _spack_repo_create() {
 }
 
 _spack_repo_list() {
-    SPACK_COMPREPLY="-h --help --scope"
+    SPACK_COMPREPLY="-h --help --scope --names --namespaces"
+}
+
+_spack_repo_ls() {
+    SPACK_COMPREPLY="-h --help --scope --names --namespaces"
 }
 
 _spack_repo_add() {
     if $list_options
     then
-        SPACK_COMPREPLY="-h --help --scope"
+        SPACK_COMPREPLY="-h --help --name --path --scope"
     else
         SPACK_COMPREPLY=""
+    fi
+}
+
+_spack_repo_set() {
+    if $list_options
+    then
+        SPACK_COMPREPLY="-h --help --destination --path --scope"
+    else
+        _repos
     fi
 }
 
