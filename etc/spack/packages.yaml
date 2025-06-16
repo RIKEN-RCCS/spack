@@ -176,3 +176,531 @@ packages:
           cxx: /usr/bin/g++
           fortran: /usr/bin/gfortran
 # -------------------------------------------------------------------------
+  fujitsu-ssl2:
+    version: [head, 4.12.0, 4.11.2, 4.11.1]
+    buildable: false
+    externals:
+    - spec: fujitsu-ssl2@head   arch=linux-rhel8-a64fx %fj
+      prefix: /opt/FJSVxtclanga/tcsds-ssl2-latest
+    - spec: fujitsu-ssl2@4.12.0 arch=linux-rhel8-a64fx %fj
+      prefix: /opt/FJSVxtclanga/tcsds-ssl2-1.2.41
+    - spec: fujitsu-ssl2@4.11.2 arch=linux-rhel8-a64fx %fj
+      prefix: /opt/FJSVxtclanga/tcsds-ssl2-1.2.40
+    - spec: fujitsu-ssl2@4.11.1 arch=linux-rhel8-a64fx %fj
+      prefix: /opt/FJSVxtclanga/tcsds-ssl2-1.2.39
+# -------------------------------------------------------------------------
+  # fujitsu-mpi:
+  #   version: [head, 4.12.0, 4.11.2, 4.11.1]
+  #   buildable: false
+  #   externals:
+  #   - spec: fujitsu-mpi@head%fj arch=linux-rhel8-a64fx
+  #     prefix: /opt/FJSVxtclanga/tcsds-mpi-latest
+  #   - spec: fujitsu-mpi@4.12.0%fj arch=linux-rhel8-a64fx
+  #     prefix: /opt/FJSVxtclanga/tcsds-mpi-1.2.41
+  #   - spec: fujitsu-mpi@4.11.2%fj arch=linux-rhel8-a64fx
+  #     prefix: /opt/FJSVxtclanga/tcsds-mpi-1.2.40
+  #   - spec: fujitsu-mpi@4.11.1%fj arch=linux-rhel8-a64fx
+  #     prefix: /opt/FJSVxtclanga/tcsds-mpi-1.2.39
+  #   - spec: fujitsu-mpi@head%gcc@12.2.0 arch=linux-rhel8-a64fx
+  #     prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc12
+  #   - spec: fujitsu-mpi@head%gcc@11.2.0 arch=linux-rhel8-a64fx
+  #     prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc11
+  #   - spec: fujitsu-mpi@head%gcc@10.4.0 arch=linux-rhel8-a64fx
+  #     prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc10
+  #   - spec: fujitsu-mpi@head%gcc@8.5.0 arch=linux-rhel8-a64fx
+  #     prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc8
+  #   - spec: fujitsu-mpi@head-gcc8.5.0 arch=linux-rhel8-a64fx
+  #     prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc8
+  fujitsu-mpi:
+    buildable: false
+    externals:
+    - spec: fujitsu-mpi@head arch=linux-rhel8-a64fx %fj
+      prefix: /opt/FJSVxtclanga/tcsds-mpi-latest
+    - spec: fujitsu-mpi@head arch=linux-rhel8-a64fx %gcc
+      prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc12
+# -------------------------------------------------------------------------
+  autoconf:
+    externals:
+    - spec: autoconf@2.69 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: autoconf@2.69 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: autoconf@2.69 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  automake:
+    externals:
+    - spec: automake@1.16.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: automake@1.16.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: automake@1.16.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  binutils:
+    externals:
+    - spec: binutils@2.30 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: binutils@2.30 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: binutils@2.30 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  bzip2:
+    externals:
+    - spec: bzip2@1.0.6 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: bzip2@1.0.6 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: bzip2@1.0.6 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  # cmake:
+  #   externals:
+  #     - spec: "cmake@3.20.2 arch=linux-rhel8-a64fx"
+  #       prefix: /usr
+  #     - spec: "cmake@3.20.2 arch=linux-rhel8-cascadelake"
+  #       prefix: /usr
+  curl:
+    externals:
+    - spec: curl@7.61.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: curl@7.61.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: curl@7.61.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  dbus:
+    externals:
+    - spec: dbus@1.12.8 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: dbus@1.12.8 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: dbus@1.12.8 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  elfutils:
+    externals:
+    - spec: elfutils@0.186 arch=linux-rhel8-a64fx
+      prefix: /usr
+      # Dummy
+    - spec: elfutils@0.182 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: elfutils@0.182 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: elfutils@0.182 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  expat:
+    externals:
+    - spec: expat@2.2.5 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: expat@2.2.5 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: expat@2.2.5 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  findutils:
+    externals:
+    - spec: findutils@4.6.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: findutils@4.6.0 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: findutils@4.6.0 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  fontconfig:
+    externals:
+    - spec: fontconfig@2.13.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: fontconfig@2.13.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: fontconfig@2.13.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  freetype:
+    externals:
+    - spec: freetype@2.9.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: freetype@2.9.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: freetype@2.9.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  gmake:
+    externals:
+    - spec: gmake@4.2.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: gmake@4.2.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: gmake@4.2.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  gdbm:
+    externals:
+    - spec: gdbm@1.18 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: gdbm@1.18 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: gdbm@1.18 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  gettext:
+    externals:
+    - spec: gettext@0.19.8.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: gettext@0.19.8.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: gettext@0.19.8.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  # gmp:
+  #   externals:
+  #     - spec: "gmp@6.1.2 arch=linux-rhel8-a64fx"
+  #       prefix: /usr
+  #     - spec: "gmp@6.1.2 arch=linux-rhel8-cascadelake"
+  #       prefix: /usr
+  #     - spec: "gmp@6.1.2 arch=linux-rhel8-skylake_avx512"
+  #       prefix: /usr
+  gnutls:
+    externals:
+    - spec: gnutls@3.6.16 arch=linux-rhel8-a64fx
+      prefix: /usr
+      # Dummy
+    - spec: gnutls@3.6.14 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: gnutls@3.6.14 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: gnutls@3.6.14 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  hwloc:
+    externals:
+    - spec: hwloc@2.2.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: hwloc@2.2.0 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: hwloc@2.2.0 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  jansson:
+    externals:
+    - spec: jansson@2.14 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: jansson@2.11 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: jansson@2.11 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libaio:
+    externals:
+    - spec: libaio@0.3.112 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libaio@0.3.112 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libaio@0.3.112 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libcap:
+    externals:
+    - spec: libcap@2.48 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libcap@2.26 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libcap@2.26 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libdrm:
+    externals:
+    - spec: libdrm@2.4.108 arch=linux-rhel8-a64fx
+      prefix: /usr
+      # Dummy
+    - spec: libdrm@2.4.103 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libdrm@2.4.103 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libdrm@2.4.103 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libedit:
+    externals:
+    - spec: libedit@3.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libedit@3.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libedit@3.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libevent:
+    externals:
+    - spec: libevent@2.1.8 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libevent@2.1.8 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libevent@2.1.8 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libfabric:
+    externals:
+    - spec: libfabric@1.14.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libfabric@1.11.2 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libfabric@1.11.2 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libffi:
+    externals:
+    - spec: libffi@3.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libffi@3.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libffi@3.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libglvnd:
+    externals:
+    - spec: libglvnd@1.3.4 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libglvnd@1.3.2 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libglvnd@1.3.2 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libibumad:
+    externals:
+    - spec: libibumad@37.2 arch=linux-rhel8-a64fx
+      prefix: /usr
+      # Dummy
+    - spec: libibumad@32.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libibumad@54mlnx1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libibumad@54mlnx1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libpciaccess:
+    externals:
+    - spec: libpciaccess@0.14 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libpciaccess@0.14 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libpciaccess@0.14 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libpng:
+    externals:
+    - spec: libpng@1.6.34 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libpng@1.6.34 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libpng@1.6.34 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libtasn1:
+    externals:
+    - spec: libtasn1@4.13 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libtasn1@4.13 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libtasn1@4.13 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libtirpc:
+    externals:
+    - spec: libtirpc@1.1.4 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libtirpc@1.1.4 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libtirpc@1.1.4 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libtool:
+    externals:
+    - spec: libtool@2.4.6 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libtool@2.4.6 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libtool@2.4.6 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libuuid:
+    externals:
+    - spec: libuuid@2.32.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libuuid@2.32.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libuuid@2.32.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libxcb:
+    externals:
+    - spec: libxcb@1.13.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libxcb@1.13.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libxcb@1.13.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libxkbcommon:
+    externals:
+    - spec: libxkbcommon@0.9.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libxkbcommon@0.9.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libxkbcommon@0.9.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  libxml2:
+    externals:
+    - spec: libxml2@2.9.7 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: libxml2@2.9.7 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: libxml2@2.9.7 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  lz4:
+    externals:
+    - spec: lz4@1.8.3 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: lz4@1.8.3 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: lz4@1.8.3 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  m4:
+    externals:
+    - spec: m4@1.4.18 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: m4@1.4.18 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: m4@1.4.18 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  ncurses:
+    externals:
+    - spec: ncurses@6.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: ncurses@6.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: ncurses@6.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  nettle:
+    externals:
+    - spec: nettle@3.4.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: nettle@3.4.1 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: nettle@3.4.1 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  nspr:
+    externals:
+    - spec: nspr@4.32.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+      # Dummy
+    - spec: nspr@4.25.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: nspr@4.25.0 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: nspr@4.25.0 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  numactl:
+    externals:
+    - spec: numactl@2.0.12 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: numactl@2.0.12 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: numactl@2.0.12 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  opengl:
+    buildable: false
+    externals:
+    - spec: opengl@4.5.0
+      prefix: /usr
+  openssl:
+    buildable: false
+    externals:
+    - spec: openssl@1.1.1k arch=linux-rhel8-a64fx
+      prefix: /usr
+      # Dummy
+    - spec: openssl@1.1.1g arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: openssl@1.1.1k arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: openssl@1.1.1k arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  papi:
+    externals:
+    - spec: papi@5.6.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: papi@5.6.0 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: papi@5.6.0 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  pcre:
+    externals:
+    - spec: pcre@8.42 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: pcre@8.42 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: pcre@8.42 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  # pcre2:
+  #   externals:
+  #     - spec: "pcre2@10.32 arch=linux-rhel8-a64fx"
+  #       prefix: /usr
+  #     - spec: "pcre2@10.32 arch=linux-rhel8-cascadelake"
+  #       prefix: /usr
+  #     - spec: "pcre2@10.32 arch=linux-rhel8-skylake_avx512"
+  #       prefix: /usr
+  perl:
+    externals:
+    - spec: perl@5.26.3 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: perl@5.26.3 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: perl@5.26.3 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  pkgconf:
+    externals:
+    - spec: pkgconf@1.4.2 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: pkgconf@1.4.2 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: pkgconf@1.4.2 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  popt:
+    externals:
+    - spec: popt@1.18 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: popt@1.18 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: popt@1.18 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  readline:
+    externals:
+    - spec: readline@7.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: readline@7.0 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: readline@7.0 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  sqlite:
+    externals:
+    - spec: sqlite@3.26.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: sqlite@3.26.0 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: sqlite@3.26.0 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  tcl:
+    externals:
+    - spec: tcl@8.6.8 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: tcl@8.6.8 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: tcl@8.6.8 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  ucx:
+    externals:
+    - spec: ucx@1.11.2 arch=linux-rhel8-a64fx
+      prefix: /usr
+      # Dummy
+    - spec: ucx@1.9.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: ucx@1.11.0 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: ucx@1.11.0 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  valgrind:
+    externals:
+    - spec: valgrind@3.18.1 arch=linux-rhel8-a64fx
+      prefix: /usr
+      # Dummy
+    - spec: valgrind@3.16.0 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: valgrind@3.16.0 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: valgrind@3.16.0 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  xz:
+    externals:
+    - spec: xz@5.2.4 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: xz@5.2.4 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: xz@5.2.4 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+  zlib:
+    externals:
+    - spec: zlib@1.2.11 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: zlib@1.2.11 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: zlib@1.2.11 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
+    buildable: false

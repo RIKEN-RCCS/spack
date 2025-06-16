@@ -11,8 +11,8 @@
 #   ~/.spack/repos.yaml
 # -------------------------------------------------------------------------
 repos:
-  - $spack/var/spack/repos/fugaku_repo/r-ccs
-  - $spack/var/spack/repos/fugaku_repo/rist
-  - $spack/var/spack/repos/fugaku_repo/local
-  - $spack/var/spack/repos/fugaku_repo/update
+  - $spack/var/spack/repos/spack_repo/fugaku/rccs
+  - $spack/var/spack/repos/spack_repo/fugaku/rist
+  - $spack/var/spack/repos/spack_repo/fugaku/local
+  - $spack/var/spack/repos/spack_repo/fugaku/update
   - $spack/var/spack/repos/spack_repo/builtin
