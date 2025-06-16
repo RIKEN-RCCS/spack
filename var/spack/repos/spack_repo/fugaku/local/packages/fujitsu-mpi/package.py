@@ -26,6 +26,10 @@ class FujitsuMpi(Package):
 
     provides("mpi@3.1:")
 
+    depends_on("c", type="build")
+    depends_on("cxx", type="build")
+    depends_on("fortran", type="build")
+    
     def install(self, spec, prefix):
         raise InstallError("Fujitsu MPI is not installable; it is vendor supplied")
 
