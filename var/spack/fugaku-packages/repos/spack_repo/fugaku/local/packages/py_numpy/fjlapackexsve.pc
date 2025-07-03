@@ -1,0 +1,10 @@
+prefix=/opt/FJSVxtclanga/tcsds-ssl2-latest
+exec_prefix=${prefix}
+libdir=${prefix}/lib64
+includedir=${prefix}/include
+
+Name: fjlapackexsve
+Description: Fujitsu SSL2 optimized LAPACK
+Version: 1.0
+Libs: -L/opt/FJSVxtclanga/tcsds-ssl2-latest/lib64 -lfjlapackexsve
+Cflags: -I${includedir}
