@@ -93,8 +93,8 @@ packages:
   #   buildable: false
   # fujitsu-ssl2:
   #   buildable: false
-  glibc:
-    buildable: false
+  # glibc:
+  #   buildable: false
   hpcx-mpi:
     buildable: false
   iconv:
@@ -358,6 +358,15 @@ packages:
   #       prefix: /usr
   #     - spec: "gmp@6.1.2 arch=linux-rhel8-skylake_avx512"
   #       prefix: /usr
+  glibc:
+    buildable: false
+    externals:
+    - spec: glibc@2.28 arch=linux-rhel8-a64fx
+      prefix: /usr
+    - spec: glibc@2.28 arch=linux-rhel8-cascadelake
+      prefix: /usr
+    - spec: glibc@2.28 arch=linux-rhel8-skylake_avx512
+      prefix: /usr
   gnutls:
     externals:
     - spec: gnutls@3.6.16 arch=linux-rhel8-a64fx
