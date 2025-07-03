@@ -226,8 +226,8 @@ packages:
     externals:
     - spec: fujitsu-mpi@head arch=linux-rhel8-a64fx %fj
       prefix: /opt/FJSVxtclanga/tcsds-mpi-latest
-    - spec: fujitsu-mpi@head arch=linux-rhel8-a64fx %gcc
-      prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc12
+    # - spec: fujitsu-mpi@head arch=linux-rhel8-a64fx %gcc
+    #   prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc12
 # -------------------------------------------------------------------------
   autoconf:
     externals:
