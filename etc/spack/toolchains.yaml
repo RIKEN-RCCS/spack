@@ -1,0 +1,8 @@
+toolchains:
+  fj_all:
+  - spec: '%[virtuals=c]fj'
+    when: '%c'
+  - spec: '%[virtuals=cxx]fj'
+    when: '%cxx'
+  - spec: '%[virtuals=fortran]fj'
+    when: '%fortran'
