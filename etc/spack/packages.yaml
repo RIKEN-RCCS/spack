@@ -19,13 +19,13 @@ packages:
       awk: [gawk]
       armci: [armcimpi]
       blas: [fujitsu-ssl2, openblas]
-      c: [gcc, llvm]
-      cxx: [gcc, llvm]
+      c: [fj, gcc, llvm]
+      cxx: [fj, gcc, llvm]
       D: [ldc]
       elf: [elfutils]
       fftw-api: [fujitsu-fftw, fftw, rist-fftw]
       flame: [libflame]
-      fortran: [gcc, llvm]
+      fortran: [fj, gcc, llvm]
       fortran-rt: [gcc-runtime]
       fuse: [libfuse]
       gl: [glx, osmesa]
@@ -107,6 +107,16 @@ packages:
     buildable: false
   xl:
     buildable: false
+# -------------------------------------------------------------------------
+  # c:
+  #   prefer:
+  #     - fj
+  # cxx:
+  #   prefer:
+  #     - fj
+  # fortran:
+  #   prefer:
+  #     - fj
 # -------------------------------------------------------------------------
   openssh:
     permissions:
