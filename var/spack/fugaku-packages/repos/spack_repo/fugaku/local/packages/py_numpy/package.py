@@ -203,7 +203,7 @@ class PyNumpy(PythonPackage):
     patch("check_executables2.patch", when="@1.19.0:1.19.5")
     patch("check_executables3.patch", when="@1.16.0:1.18.5")
 
-    patch("fix-atomic-const.patch", when="%fj")
+    patch("fix-atomic-const.patch", when="@2.0.0: %fj")
     
     # Backport bug fix for f2py's define for threading when building with Mingw
     patch(
@@ -474,7 +474,7 @@ class PyNumpy(PythonPackage):
                 f.write("include_dirs = {0}\n".format(lapack_header_dirs))
 
             if "^fujitsu-ssl2" in spec:
-                f.write("[blas]\n")
+                f.write("[openblas]\n")
                 f.write("libraries = {0}\n".format(spec["blas"].libs.names[0]))
                 write_library_dirs(f, blas_lib_dirs)
                 f.write("include_dirs = {0}\n".format(blas_header_dirs))
@@ -523,7 +523,10 @@ class PyNumpy(PythonPackage):
             blas = "mkl"
         elif spec["blas"].name == "blis" or spec["blas"].name == "amdblis":
             blas = "blis"
-        elif spec["blas"].name == "openblas":
+        elif ( spec["blas"].name == "openblas"
+               or
+               spec["blas"].name == "fujitsu-ssl2"
+        ):
             blas = "openblas"
         elif spec["blas"].name == "atlas":
             blas = "atlas"
@@ -537,7 +540,10 @@ class PyNumpy(PythonPackage):
         # https://numpy.org/doc/1.25/user/building.html#lapack
         if spec["lapack"].name == "intel-oneapi-mkl":
             lapack = "mkl"
-        elif spec["lapack"].name == "openblas":
+        elif ( spec["lapack"].name == "openblas"
+               or
+               spec["lapack"].name == "fujitsu-ssl2"
+        ):
             lapack = "openblas"
         elif spec["lapack"].name == "libflame" or spec["lapack"].name == "amdlibflame":
             lapack = "flame"
