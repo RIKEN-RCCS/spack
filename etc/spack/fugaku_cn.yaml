@@ -6,35 +6,34 @@ spack:
     # packages to be compiled with fj
     #
     - fjs:
-#      - abinit@8.10.2 %fj +openmp optimization-flavor=aggressive ^fujitsu-fftw
-      - adios2 %fj
-#      - alps %fj # cannot be installed
+      - adios2 cxxflags="-std=c++14" %fj
       - batchedblas %fj
-      - bcftools %fj ^htslib@1.12
+      - bcftools %fj 
       - bedtools2 %fj
       - biobambam2 %fj
       - boost %fj
-      - braket %fj ^boost@1.80.0
+      #- braket %fj ^boost@1.80.0 
       - bwa %fj
       - cbc %fj
-      - cblas %fj
-      - cmake %fj +ownlibs
+      - cblas fflags="-Kparallel -Kopenmp"  %fj
+      - cmake +ownlibs %fj 
       - dssp %fj
       - eigen %fj
       - eigenexa %fj
       - ermod %fj
-      - fugaku-frontistr %fj
+      #- fugaku-frontistr %fj
       - fujitsu-fftw %fj
       - fujitsu-ssl2 %fj
       - grads %fj ^pcre2@10.39
       - h5z-zfp %fj
-      - hdf5 %fj +cxx+fortran+hl
+      - hdf5 +cxx+fortran+hl %fj
       - htslib@1.12 %fj
       - improved-rdock %fj ^pcre2@10.39 ^gobject-introspection@1.56.1 ^pango@1.42.4
 #      - julia %fj
       - lis %fj
 #      - llvm %fj  ^binutils@2.37~nls # "because no binutils+ld in /usr"
-      - llvm %fj ^libedit@3.1-20210216 ^hwloc~pci
+#      - llvm %fj ^libedit@3.1-20210216 ^hwloc~pci
+      - llvm %fj
       - mapsplice2 %fj ^samtools/xxxxx
       - metis %fj
 #      - mesa %fj ^llvm/xxxxx # to avoid a concretization error in llvm
