@@ -127,6 +127,15 @@ packages:
     - spec: ldflags="--linkfortran -SSL2 -Kopenmp"
       when: "%fj"
 # -------------------------------------------------------------------------
+  py-scipy:
+    require:
+    - spec: "@:1.8.1"
+      when: "%fj"
+  samtools:
+    require:
+    - spec: "^ncurses@6.2:"
+      when: "%fj"
+# -------------------------------------------------------------------------
   fj:
     buildable: false
     externals:
