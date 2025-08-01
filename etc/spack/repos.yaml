@@ -11,6 +11,10 @@
 #   ~/.spack/repos.yaml
 # -------------------------------------------------------------------------
 repos:
+  fugaku.rccs: $spack/var/spack/fugaku-packages/repos/spack_repo/fugaku/rccs
+  fugaku.rist: $spack/var/spack/fugaku-packages/repos/spack_repo/fugaku/rist
+  fugaku.local: $spack/var/spack/fugaku-packages/repos/spack_repo/fugaku/local
+  fugaku.update: $spack/var/spack/fugaku-packages/repos/spack_repo/fugaku/update
   builtin:
     git: https://github.com/spack/spack-packages.git
     branch: releases/v2025.07
