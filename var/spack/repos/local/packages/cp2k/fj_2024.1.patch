@@ -1,0 +1,11 @@
+--- cp2k-2024.1.org/src/grid/cpu/grid_cpu_collocate.c	2025-04-17 14:41:55.000000000 +0900
++++ cp2k-2024.1/src/grid/cpu/grid_cpu_collocate.c	2025-04-17 14:42:08.000000000 +0900
+@@ -44,7 +44,7 @@
+   char filename[100];
+   snprintf(filename, sizeof(filename), "grid_collocate_%05i.task", my_number);
+ 
+-  const int D = DBL_DECIMAL_DIG;
++  const int D = DECIMAL_DIG;
+   FILE *fp = fopen(filename, "w+");
+   fprintf(fp, "#Grid task v10\n");
+   fprintf(fp, "orthorhombic %i\n", orthorhombic);

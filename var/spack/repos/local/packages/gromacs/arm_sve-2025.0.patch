@@ -1,0 +1,116 @@
+From dd74a940aa497c2f975662a6cfe4df012e3ea9f7 Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Fri, 14 Feb 2025 23:45:23 +0900
+Subject: [PATCH 01/10] arm_sve: silence warnings
+
+Use C++ casts in order to silence compiler warnings
+---
+ .../simd/impl_arm_sve/impl_arm_sve_general.h  |  5 ++--
+ .../impl_arm_sve/impl_arm_sve_simd_double.h   |  2 +-
+ .../impl_arm_sve/impl_arm_sve_simd_float.h    |  2 +-
+ .../impl_arm_sve/impl_arm_sve_util_float.h    | 28 +++++++++++--------
+ 4 files changed, 21 insertions(+), 16 deletions(-)
+
+diff --git a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_general.h b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_general.h
+index 657e2a9e12..af243f47bd 100644
+--- a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_general.h
++++ b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_general.h
+@@ -53,8 +53,9 @@ static inline void simdPrefetch(void* m)
+ 
+ #define SVE_DOUBLE_MASK svptrue_b64()
+ #define SVE_DINT32_MASK svptrue_b64()
+-#define SVE_SIMD_FLOAT_HALF_DOUBLE_MASK svwhilelt_b32(0, (int32_t)GMX_SIMD_DINT32_WIDTH)
+-#define SVE_SIMD_DOUBLE_HALF_MASK svwhilelt_b64(0, (int32_t)GMX_SIMD_DOUBLE_WIDTH / 2)
++#define SVE_SIMD_FLOAT_HALF_DOUBLE_MASK \
++    svwhilelt_b32(0, static_cast<int32_t>(GMX_SIMD_DINT32_WIDTH))
++#define SVE_SIMD_DOUBLE_HALF_MASK svwhilelt_b64(0, static_cast<int32_t>(GMX_SIMD_DOUBLE_WIDTH) / 2)
+ #define SVE_FLOAT_HALF_MASK svwhilelt_b32(0, GMX_SIMD_FLOAT_WIDTH / 2)
+ #define SVE_FINT32_HALF_MASK svwhilelt_b32(0, GMX_SIMD_FLOAT_WIDTH / 2)
+ #define SVE_FLOAT4_MASK svptrue_pat_b32(SV_VL4)
+diff --git a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_simd_double.h b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_simd_double.h
+index ef63c5bfe2..4dcca7b738 100644
+--- a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_simd_double.h
++++ b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_simd_double.h
+@@ -543,7 +543,7 @@ static inline SimdDIBool gmx_simdcall operator==(SimdDInt32 a, SimdDInt32 b)
+ static inline SimdDIBool gmx_simdcall testBits(SimdDInt32 a)
+ {
+     svbool_t pg = svptrue_b64();
+-    return { svcmpne_n_s64(pg, a.simdInternal_, (int64_t)0) };
++    return { svcmpne_n_s64(pg, a.simdInternal_, static_cast<int64_t>(0)) };
+ }
+ 
+ static inline SimdDIBool gmx_simdcall operator<(SimdDInt32 a, SimdDInt32 b)
+diff --git a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_simd_float.h b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_simd_float.h
+index d7e86f54b8..3c5a8f877a 100644
+--- a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_simd_float.h
++++ b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_simd_float.h
+@@ -552,7 +552,7 @@ static inline SimdFIBool gmx_simdcall operator==(SimdFInt32 a, SimdFInt32 b)
+ static inline SimdFIBool gmx_simdcall testBits(SimdFInt32 a)
+ {
+     svbool_t pg = svptrue_b32();
+-    return { svcmpne_n_s32(pg, a.simdInternal_, (int32_t)0) };
++    return { svcmpne_n_s32(pg, a.simdInternal_, static_cast<int32_t>(0)) };
+ }
+ 
+ static inline SimdFIBool gmx_simdcall operator<(SimdFInt32 a, SimdFInt32 b)
+diff --git a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_util_float.h b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_util_float.h
+index cb7d90467f..dee7c68870 100644
+--- a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_util_float.h
++++ b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_util_float.h
+@@ -77,9 +77,9 @@ gatherLoadBySimdIntTranspose(const float* base, SimdFInt32 offset, SimdFloat* v0
+     {
+         svbool_t    pg    = svptrue_b32();
+         svfloat32_t t0    = svreinterpret_f32_u64(svld1_gather_s64index_u64(
+-                svunpklo_b(pg), (uint64_t*)base, svunpklo_s64(offset.simdInternal_)));
++                svunpklo_b(pg), reinterpret_cast<const uint64_t*>(base), svunpklo_s64(offset.simdInternal_)));
+         svfloat32_t t1    = svreinterpret_f32_u64(svld1_gather_s64index_u64(
+-                svunpkhi_b(pg), (uint64_t*)base, svunpkhi_s64(offset.simdInternal_)));
++                svunpkhi_b(pg), reinterpret_cast<const uint64_t*>(base), svunpkhi_s64(offset.simdInternal_)));
+         v0->simdInternal_ = svuzp1(t0, t1);
+         v1->simdInternal_ = svuzp2(t0, t1);
+     }
+@@ -87,12 +87,12 @@ gatherLoadBySimdIntTranspose(const float* base, SimdFInt32 offset, SimdFloat* v0
+     {
+         svbool_t    pg      = svptrue_b32();
+         svint32_t   offsets = svmul_n_s32_x(pg, offset.simdInternal_, align / 2);
+-        svfloat32_t t0      = svreinterpret_f32_u64(
+-                svld1_gather_s64index_u64(svunpklo_b(pg), (uint64_t*)base, svunpklo_s64(offsets)));
+-        svfloat32_t t1 = svreinterpret_f32_u64(
+-                svld1_gather_s64index_u64(svunpkhi_b(pg), (uint64_t*)base, svunpkhi_s64(offsets)));
+-        v0->simdInternal_ = svuzp1(t0, t1);
+-        v1->simdInternal_ = svuzp2(t0, t1);
++        svfloat32_t t0      = svreinterpret_f32_u64(svld1_gather_s64index_u64(
++                svunpklo_b(pg), reinterpret_cast<const uint64_t*>(base), svunpklo_s64(offsets)));
++        svfloat32_t t1      = svreinterpret_f32_u64(svld1_gather_s64index_u64(
++                svunpkhi_b(pg), reinterpret_cast<const uint64_t*>(base), svunpkhi_s64(offsets)));
++        v0->simdInternal_   = svuzp1(t0, t1);
++        v1->simdInternal_   = svuzp2(t0, t1);
+     }
+ }
+ 
+@@ -391,14 +391,18 @@ static inline void gmx_simdcall gatherLoadTransposeHsimd(const float*       base
+     svfloat32_t _v0, _v1;
+     if (2 == align)
+     {
+-        _v0 = svreinterpret_f32_f64(svld1_gather_s64index_f64(SVE_DOUBLE_MASK, (double*)base0, offsets));
+-        _v1 = svreinterpret_f32_f64(svld1_gather_s64index_f64(SVE_DOUBLE_MASK, (double*)base1, offsets));
++        _v0 = svreinterpret_f32_f64(svld1_gather_s64index_f64(
++                SVE_DOUBLE_MASK, reinterpret_cast<const double*>(base0), offsets));
++        _v1 = svreinterpret_f32_f64(svld1_gather_s64index_f64(
++                SVE_DOUBLE_MASK, reinterpret_cast<const double*>(base1), offsets));
+     }
+     else
+     {
+         offsets = svmul_n_s64_x(svptrue_b64(), offsets, align * 4);
+-        _v0 = svreinterpret_f32_f64(svld1_gather_s64offset_f64(SVE_DOUBLE_MASK, (double*)base0, offsets));
+-        _v1 = svreinterpret_f32_f64(svld1_gather_s64offset_f64(SVE_DOUBLE_MASK, (double*)base1, offsets));
++        _v0     = svreinterpret_f32_f64(svld1_gather_s64offset_f64(
++                SVE_DOUBLE_MASK, reinterpret_cast<const double*>(base0), offsets));
++        _v1     = svreinterpret_f32_f64(svld1_gather_s64offset_f64(
++                SVE_DOUBLE_MASK, reinterpret_cast<const double*>(base1), offsets));
+     }
+     v0->simdInternal_ = svuzp1(_v0, _v1);
+     v1->simdInternal_ = svuzp2(_v0, _v1);
+-- 
+2.43.5
+

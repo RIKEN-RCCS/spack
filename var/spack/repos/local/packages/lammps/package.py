@@ -1,8 +1,9 @@
-# Copyright 2013-2023 Lawrence Livermore National Security, LLC and other
+#l Copyright 2013-2023 Lawrence Livermore National Security, LLC and other
 # Spack Project Developers. See the top-level COPYRIGHT file for details.
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 import datetime as dt
+import os
 
 import archspec
 
@@ -20,8 +21,10 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
 
     tags = ["ecp", "ecp-apps"]
 
-    ### maintainners is not defined in spack v0.19
     maintainers("rbberger")
+
+    ### subroutine "license" is not implemented in spack-v0.21
+    # license("GPL-2.0-only")
 
     # rules for new versions and deprecation
     # * new stable versions should be added to stable_versions set
@@ -31,12 +34,54 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
     version("develop", branch="develop")
     
     ### [RIST] added part ###
-    # version("20240207", sha256="d518f32de4eb2681f2543be63926411e72072dd7d67c1670c090b5baabed98ac")
-    # version("20231121", sha256="704d8a990874a425bcdfe0245faf13d712231ba23f014a3ebc27bc14398856f1")
+    version(
+        "20240829.2",
+        sha256="f8ca3f021a819ced8658055f7750e235c51b4937ddb621cf1bd7bee08e0b6266",
+        preferred=True,
+    )
+    version(
+        "20240829.1",
+        sha256="3aea41869aa2fb8120fc4814cab645686f969e2eb7c66aa5587e500597d482dc",
+        deprecated=True,
+    )
+    version(
+        "20240829",
+        sha256="6112e0cc352c3140a4874c7f74db3c0c8e30134024164509ecf3772b305fde2e",
+        deprecated=True,
+    )
+    version(
+        "20240627",
+        sha256="2174a99d266279823a8c57629ee1c21ec357816aefd85f964d9f859fe9222aa5",
+        deprecated=True,
+    )
+    version(
+        "20240417",
+        sha256="158b288725c251fd8b30dbcf61749e0d6a042807da92af865a7d3c413efdd8ea",
+        deprecated=True,
+    )
+    version(
+        "20240207.1",
+        sha256="3ba62c2a1ed463fceedf313a1c3ea2997994aa102379a8d35b525ea424f56776",
+        deprecated=True,
+    )
+    version(
+        "20240207",
+        sha256="d518f32de4eb2681f2543be63926411e72072dd7d67c1670c090b5baabed98ac",
+        deprecated=True,
+    )
+    version(
+        "20231121",
+        sha256="704d8a990874a425bcdfe0245faf13d712231ba23f014a3ebc27bc14398856f1",
+        deprecated=True,
+    )
+    version(
+        "20230802.4",
+         sha256="6eed007cc24cda80b5dd43372b2ad4268b3982bb612669742c8c336b79137b5b"
+    )
     version(
         "20230802.3",
         sha256="6666e28cb90d3ff01cbbda6c81bdb85cf436bbb41604a87f2ab2fa559caa8510",
-        preferred=True,
+        deprecated=True,
     )
     version(
         "20230802.2",
@@ -363,9 +408,13 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
     )
 
     stable_versions = {
-        "20230802.3",  ### [RIST] added
-        "20230802.2",  ### [RIST] added
-        "20230802.1",  ### [RIST] added
+        "20240829.2",
+        "20240829.1",
+        "20240829",
+        "20230802.4",
+        "20230802.3",
+        "20230802.2",
+        "20230802.1",
         "20230802",
         "20220623.4",
         "20220623.3",
@@ -430,6 +479,7 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
         "drude": {"when": "@20210702:"},
         "eff": {"when": "@20210702:"},
         "electrode": {"when": "@20220504:"},
+        "extra-command": {"when": "@20240829:"},
         "extra-compute": {"when": "@20210728:"},
         "extra-dump": {"when": "@20210728:"},
         "extra-fix": {"when": "@20210728:"},
@@ -459,11 +509,12 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
         "ml-pod": {"when": "@20221222:"},
         "ml-rann": {"when": "@20210702:"},
         "ml-snap": {"when": "@20210702:"},
+        "ml-uf3": {"when": "@20240627:"},
         "mliap": {"when": "@20200630:20210527"},
         "mofff": {"when": "@20210702:"},
         "molecule": {"default": True},
         "molfile": {"when": "@20210702:"},
-        "mpiio": {},
+        "mpiio": {"when": "@:20230802.1"},
         "netcdf": {"when": "@20210702:"},
         "openmp-package": {},
         "opt": {},
@@ -480,6 +531,7 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
         "reaction": {"when": "@20210702:"},
         "reax": {"when": "@:20181212"},
         "reaxff": {"when": "@20210702:"},
+        "rheo":{"when": "@20240829:"},
         "replica": {},
         "rigid": {"default": True},
         "shock": {},
@@ -555,9 +607,16 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
     variant("jpeg", default=False, description="Build with jpeg support")
     variant("png", default=False, description="Build with png support")
     variant("ffmpeg", default=False, description="Build with ffmpeg support")
+    variant("curl", default=False, description="Build with curl support", when="@20240829:")
     variant("openmp", default=True, description="Build with OpenMP")
     variant("opencl", default=False, description="Build with OpenCL")
-    variant("exceptions", default=False, description="Build with lammps exceptions")
+    # variant("exceptions", default=False, description="Build with lammps exceptions")
+    variant(
+        "exceptions",
+        default=False,
+        description="Build with lammps exceptions",
+        when="@:20230802.1",
+    )
     variant(
         "cuda_mps",
         default=False,
@@ -582,6 +641,21 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
         multi=False,
     )
     variant(
+        "fft",
+        default="fftw3",
+        when="+kspace",
+        description="FFT library for KSPACE package",
+        values=("kiss", "fftw3", "mkl"),
+        multi=False,
+    )
+    variant(
+        "heffte",
+        default=False,
+        when="+kspace @20240207:",
+        description="Use heffte as distubuted FFT engine",
+    )
+
+    variant(
         "gpu_precision",
         default="mixed",
         when="~kokkos",
@@ -589,6 +663,7 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
         values=("double", "mixed", "single"),
         multi=False,
     )
+    variant("tools", default=False, description="Build LAMMPS tools (msi2lmp, binary2txt, chain)")
 
     ### [RIST added part start] ###
     variant(
@@ -598,6 +673,7 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
                     "applying patch ")
     ### [RIST added part end] ###
 
+    depends_on("cmake@3.16:", when="@20231121:", type="build")
     depends_on("mpi", when="+mpi")
     depends_on("mpi", when="+mpiio")
     depends_on("fftw-api@3", when="+kspace")
@@ -626,11 +702,14 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
     depends_on("jpeg", when="+jpeg")
     depends_on("kim-api", when="+kim")
     depends_on("curl", when="@20190329:+kim")
+    depends_on("curl", when="+curl")
     depends_on("libpng", when="+png")
     depends_on("ffmpeg", when="+ffmpeg")
     depends_on("kokkos+deprecated_code+shared@3.0.00", when="@20200303+kokkos")
     depends_on("kokkos+shared@3.1:", when="@20200505:+kokkos")
     depends_on("kokkos@3.7.01:", when="@20230208: +kokkos")
+    depends_on("kokkos@4.3.00:", when="@20240417: +kokkos")
+    depends_on("kokkos@4.3.01:", when="@20240627: +kokkos")
     depends_on("adios2", when="+user-adios")
     depends_on("adios2", when="+adios")
     depends_on("plumed", when="+user-plumed")
@@ -639,9 +718,15 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
     depends_on("eigen@3:", when="+machdyn")
     depends_on("py-cython", when="+mliap+python")
     depends_on("py-cython", when="+ml-iap+python")
-    depends_on("py-numpy", when="+python")
-    depends_on("py-mpi4py", when="+python+mpi")
-    depends_on("py-setuptools", when="@20220217:+python", type="build")
+    depends_on("py-pip", when="+python", type="build")
+    depends_on("py-wheel", when="+python", type="build")
+    depends_on("py-build", when="+python", type="build")
+    depends_on("py-numpy", when="+python", type=("build", "run"))
+    depends_on("py-mpi4py", when="+python+mpi", type=("build", "run"))
+    depends_on("py-setuptools@42:", when="@20220217:+python", type=("build", "run"))
+    ## depends_on("py-numpy", when="+python")
+    ## depends_on("py-mpi4py", when="+python+mpi")
+    ## depends_on("py-setuptools", when="@20220217:+python", type="build")
     # for _n2p2_cond in ("+user-hdnnp", "+ml-hdnnp"):
     #     with when(_n2p2_cond):
     #         depends_on("n2p2@2.1.4:")
@@ -650,6 +735,8 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
     depends_on("vtk", when="+vtk")
     depends_on("hipcub", when="~kokkos +rocm")
     depends_on("llvm-amdgpu +openmp", when="+rocm +openmp", type="build")
+    depends_on("rocm-openmp-extras", when="+rocm +openmp", type="build")
+    depends_on("gsl@2.6:", when="+rheo")
 
     # propagate CUDA and ROCm architecture when +kokkos
     for arch in CudaPackage.cuda_arch_values:
@@ -755,15 +842,18 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
     patch("rist-29Oct2020.patch", when="@20201029 %fj +fj_loopopt")
     patch("rist-23Jun2022.patch", when="@20220623 %fj +fj_loopopt")   ### this patch does not contain the result for tersoff tuning
     patch("rist-02Aug2023.patch", when="@20230802 %fj +fj_loopopt")
+    patch("rist-29Aug2024.patch", when="@20240829 %fj +fj_loopopt")
 
     # patch("rist-29Oct2020-fjbugfix-20230329.patch", when='@20201029 %fj +user-ptm')
     patch("rist-29Oct2020-fjbugfix-20230329.patch", when='@20201029 %fj@:4.8.1 +user-ptm')
-    patch("rist-23Jun2022-fjbugfix.patch", when='@20220623 %fj@:4.8.1 +ptm')
-    patch("rist-02Aug2023-fjbugfix.patch", when='@20230802 %fj@:4.8.1 +ptm')
+    patch("rist-23Jun2022-fjbugfix.patch", when='@20220623: %fj@:4.8.1 +ptm')
+    # patch("rist-02Aug2023-fjbugfix.patch", when='@20230802: %fj@:4.8.1 +ptm')
+    # patch("rist-29Aug2024-fjbugfix.patch", when='@20240829 %fj@:4.8.1 +ptm')
 
     patch("rist-29Oct2020-exceptions.patch", when='@20201029 %fj +exceptions')
     patch("rist-23Jun2022-exceptions.patch", when='@20220623 %fj +exceptions')
     patch("rist-02Aug2023-exceptions.patch", when='@20230802 %fj +exceptions')   ### sha256 error
+    patch("rist-29Aug2024-fugaku.patch", when='@20240829 %fj')
     ### [RIST] added part ###
 
     root_cmakelists_dir = "cmake"
@@ -782,6 +872,7 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
             self.define_from_variant("LAMMPS_EXCEPTIONS", "exceptions"),
             self.define_from_variant("{}_MPI".format(mpi_prefix), "mpi"),
             self.define_from_variant("BUILD_OMP", "openmp"),
+            self.define_from_variant("BUILD_TOOLS", "tools"),
             self.define("ENABLE_TESTING", self.run_tests),
         ]
         if "~kokkos" in spec:
@@ -840,6 +931,7 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
         args.append(self.define_from_variant("WITH_JPEG", "jpeg"))
         args.append(self.define_from_variant("WITH_PNG", "png"))
         args.append(self.define_from_variant("WITH_FFMPEG", "ffmpeg"))
+        args.append(self.define_from_variant("WITH_CURL", "curl"))
 
         for pkg, params in self.supported_packages.items():
             if "when" not in params or spec.satisfies(params["when"]):
@@ -933,3 +1025,14 @@ class Lammps(CMakePackage, CudaPackage, ROCmPackage):
         if "+python" in self.spec:
             env.prepend_path("LD_LIBRARY_PATH", self.prefix.lib)
             env.prepend_path("LD_LIBRARY_PATH", self.prefix.lib64)
+
+    @run_after("install")
+    def install_python(self):
+        # do LAMMPS Python package installation using pip
+        if self.spec.satisfies("@20230328: +python"):
+            with working_dir("python"):
+                os.environ["LAMMPS_VERSION_FILE"] = join_path(
+                    self.stage.source_path, "src", "version.h"
+                )
+                args = std_pip_args + ["--prefix=" + self.prefix, "./"]
+                pip(*args)

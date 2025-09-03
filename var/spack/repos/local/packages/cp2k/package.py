@@ -29,6 +29,10 @@ class Cp2k(MakefilePackage, CudaPackage, CMakePackage, ROCmPackage):
 
     maintainers("dev-zero", "mtaillefumier")
 
+    version("2025.1", sha256="65c8ad5488897b0f995919b9fa77f2aba4b61677ba1e3c19bb093d5c08a8ce1d")
+    version("2024.3", sha256="a6eeee773b6b1fb417def576e4049a89a08a0ed5feffcd7f0b33c7d7b48f19ba")
+    version("2024.2", sha256="cc3e56c971dee9e89b705a1103765aba57bf41ad39a11c89d3de04c8b8cdf473")
+    version("2024.1", sha256="a7abf149a278dfd5283dc592a2c4ae803b37d040df25d62a5e35af5c4557668f")
     version("2023.2", sha256="adbcc903c1a78cba98f49fe6905a62b49f12e3dfd7cedea00616d1a5f50550db")
     version("2023.1", sha256="dff343b4a80c3a79363b805429bdb3320d3e1db48e0ff7d20a3dfd1c946a51ce")
     version("2022.2", sha256="1a473dea512fe264bb45419f83de432d441f90404f829d89cbc3a03f723b8354")
@@ -249,6 +253,7 @@ class Cp2k(MakefilePackage, CudaPackage, CMakePackage, ROCmPackage):
         depends_on("sirius@7.3:", when="@9.1")
         depends_on("sirius@7.3.2", when="@2023.1")
         depends_on("sirius@7.4:", when="@2023.2")
+        depends_on("sirius@7.3.2", when="@2024.1")
         conflicts("~mpi", msg="SIRIUS requires MPI")
         # sirius support was introduced in 7, but effectively usable starting from CP2K 9
         conflicts("@:8")
@@ -266,7 +271,9 @@ class Cp2k(MakefilePackage, CudaPackage, CMakePackage, ROCmPackage):
     depends_on("python@3.6:", when="@7:+cuda")
     depends_on("py-fypp")
 
-    depends_on("spglib", when="+spglib")
+    with when("+spglib"):
+        depends_on("spglib", when="+spglib")
+        depends_on("spglib@1.16.1~ipo", when="@2023.1:%fj")
 
     # Apparently cp2k@4.1 needs an "experimental" version of libwannier.a
     # which is only available contacting the developer directly. See INSTALL
@@ -351,7 +358,10 @@ class Cp2k(MakefilePackage, CudaPackage, CMakePackage, ROCmPackage):
     patch("backport_avoid_null_9.1.patch", when="@9.1 %aocc@:4.0")
 
     # Fix to build with Fujitsu compiler
-    patch("fj_2023.1.patch", when="@2023.1 %fj")
+    patch("fj_2023.1.patch", when="@2023.1:2024.1 %fj")
+    patch("fj_2024.1.patch", when="@2024.1 %fj")
+    patch("fj_2024.2-3.patch", when="@2024.2:2024.3 %fj")
+    patch("fj_2025.1.patch", when="@2025.1 %fj")
 
     # Patch for an undefined constant due to incompatible changes in ELPA
     @when("@9.1:2022.2 +elpa")
@@ -454,7 +464,8 @@ class Cp2k(MakefilePackage, CudaPackage, CMakePackage, ROCmPackage):
         elif "%fj" in spec:
             fcflags += ["-X08"]
             ldflags += ["--linkfortran"]
-
+            if "@2025.1" in spec:
+                fcflags.append("-DFTN_NO_DEFAULT_INIT")
         if "%gcc@10: +mpi" in spec and spec["mpi"].name in ["mpich", "cray-mpich"]:
             fcflags += [
                 "-fallow-argument-mismatch"

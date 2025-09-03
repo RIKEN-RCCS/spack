@@ -1,0 +1,28 @@
+diff --git a/src/error.cpp b/src/error.cpp
+index 4aaa93aa31..b378ae6720 100644
+--- a/src/error.cpp
++++ b/src/error.cpp
+@@ -132,6 +132,11 @@ void Error::all(const std::string &file, int line, const std::string &str)
+       ; // do nothing
+     }
+     utils::logmesg(lmp,mesg);
++
++    // [RIST added part start]
++    if (lmp->logfile) std::fflush(lmp->logfile);
++    if (lmp->screen) std::fflush(lmp->screen);
++    // [RIST added part end]
+   }
+ 
+   // allow commands if an exception was caught in a run
+@@ -165,6 +170,11 @@ void Error::one(const std::string &file, int line, const std::string &str)
+                                  me,str,truncpath(file),line,lastcmd);
+   utils::logmesg(lmp,mesg);
+ 
++  // [RIST added part start]
++  if (lmp->logfile) std::fflush(lmp->logfile);
++  if (lmp->screen) std::fflush(lmp->screen);
++  // [RIST added part end]
++
+   if (universe->nworlds > 1)
+     if (universe->uscreen)
+       fputs(mesg.c_str(),universe->uscreen);

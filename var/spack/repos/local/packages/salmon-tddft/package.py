@@ -34,6 +34,7 @@ class SalmonTddft(CMakePackage):
     homepage = "https://salmon-tddft.jp/"
     url      = "http://salmon-tddft.jp/download/SALMON-v.2.0.2.tar.gz"
 
+    version('2.2.1', sha256='f665fc2541b2e664a82b39286ecc9a9ddaa9eb77640f31bcecf131bbb0efe2ba')
     version('2.2.0', sha256='b0b6eabad48f4547ae2a97f53771047ccb759b8c126ab0f1653b0e0f0d02a28b')
     version('2.1.0', sha256='18267818cdfa82ea762441e2d751abeff7b553c8ce92cabf5fb010248d2cfcbe')
     version('2.0.2', sha256='742007d3684a478199ba959ce135ad0020b70676a49f52a5e1dc25438123d50e')

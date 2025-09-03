@@ -10,9 +10,10 @@ class Qulacs(CMakePackage):
     """Qulacs is a Python/C++ library for fast simulation of large, noisy, or parametric quantum circuits.Qulacs is developed at QunaSys, Osaka University, NTT and Fujitsu."""
 
     homepage = "https://github.com/qulacs/qulacs"
-    url = "https://github.com/qulacs/qulacs/archive/refs/tags/v0.5.5.tar.gz"
+    url = "https://github.com/qulacs/qulacs/archive/refs/tags/v0.5.6.tar.gz"
     maintainers = ["shigetoshisota","otsukay"]
 
+    version("0.5.6", sha256="7335023a9730ea87948175f7f7eba25b5013df3018e27558a107084d19745bd4")
     version("0.5.5", sha256="3a5dbb4a97528b5a33416f6f786e8793292c90bc99869379e45dbdde06e22b98")
 
     depends_on("boost@1.71.0:", type="build")

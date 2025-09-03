@@ -19,6 +19,9 @@ class Genesis(AutotoolsPackage, CudaPackage):
 
     version("master", branch="master")
     version(
+        "2.1.5",tag='v2.1.5',
+    )
+    version(
         "2.1.4",tag='v2.1.4',
     )
     version(
@@ -108,7 +111,7 @@ class Genesis(AutotoolsPackage, CudaPackage):
     depends_on("m4", type="build")
 
     depends_on("mpi", type=("build", "run"))
-    depends_on("lapack")
+    depends_on("netlib-lapack")
     depends_on("python@2.6.9:2.8.0", type=("build", "run"), when="@:1.7.1")
     depends_on("python@3.0.0:", type=("build", "run"), when="@2.0.0:")
 

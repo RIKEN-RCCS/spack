@@ -116,6 +116,8 @@ packages:
         prefix: /vol0004/apps/opt/qe-7.2/bin
       - spec: "quantum-espresso@7.3%fj@4.10.0 arch=linux-rhel8-a64fx"
         prefix: /vol0004/apps/opt/qe-7.3/bin
+      - spec: "quantum-espresso@7.3.1%fj@4.11.2 arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/opt/qe-7.3.1/bin
     buildable: False
   kiertaa:
     externals:

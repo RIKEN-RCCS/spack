@@ -18,6 +18,7 @@ class QuantumEspresso(Package):
     version('7.1')
     version('7.2')
     version('7.3')
+    version('7.3.1')
 
     def setup_run_environment(self, env):
         env.prepend_path('PATH', self.prefix)

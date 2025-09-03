@@ -39,9 +39,10 @@ class Phase0(MakefilePackage):
     """
 
     homepage = "https://azuma.nims.go.jp/"
-    url      = "file://{0}/phase0_2023.01.tar.gz".format(os.getcwd())
+    url      = "file://{0}/phase0_2024.01.tar.gz".format(os.getcwd())
 
-    version('2023.01', sha256="c758d00ca71cbbd093a6f8d1d76dd02a0356e92fb9ea13d9b384a4897bf99ca9")
+    version('2024.01', sha256="7bf5d37e2433ef2c07ffe0876879d78f04e1e222aa68378e73a7918fd7d6bb23")
+    version('2023.01', sha256="c758d00ca71cbbd093a6f8d1d76dd02a0356e92fb9ea13d9b384a4897bf99ca9")    
     version('2021.02', sha256="a7ae75aa236f3b3a9b485aa10b9dce0c23cdf3719719d1e1ee0027be9420e4eb")
     version('2021.01', sha256="70a3ad6614bb3f99510179bebbed9dcdc4a61578ce6d9b50a30108da4e8726dd")
     version('2019.02', sha256="e6b15ba8048b3c90d85487d4abfa5ae30658cdfe3bc7edb7615ca7735601c8f9")    
@@ -53,7 +54,8 @@ class Phase0(MakefilePackage):
     patch("2023.01_b_XC_Potential.F90.patch", when="@2023.01")
 
     depends_on('mpi')
-    depends_on('fftw-api@3')
+    depends_on('fftw-api@3', when="@:2023.01")
+    depends_on('fftw-api+openmp', when="@2024.01")
 
     parallel = False
 
@@ -67,6 +69,8 @@ class Phase0(MakefilePackage):
             ver_str = "2021.02"
         elif "@2023.01" in spec:
             ver_str = "2023.01"
+        elif "@2024.01" in spec:
+            ver_str = "2024.01"
         #
         if "type=3d" in spec:
             makefile_src = join_path(os.path.dirname(self.module.__file__), 'Makefile.3d.'+ver_str)
@@ -91,7 +95,7 @@ class Phase0(MakefilePackage):
 
     @property
     def build_targets(self):
-        if self.spec.satisfies("@2023.01"):
+        if self.spec.satisfies("@2023.01") or self.spec.satisfies("@2024.01"):
             targets = ["install",
                        "CC=mpifcc -Nnoclang",
         ]
