@@ -327,6 +327,22 @@ if [ "$_sp_shell" = bash ]; then
     export -f _spack_shell_wrapper
 fi
 
+arch=$(arch)
+case $arch in
+    "aarch64")
+        SPACK_PYTHON="${SPACK_ROOT}/opt/spack/linux-a64fx/python-3.13.5-qhm66vhaiw6d33txpyfrbyqukumansc7/bin/python"
+        ;;
+    "x86_64")
+        SPACK_PYTHON="${SPACK_ROOT}/opt/spack/linux-cascadelake/python-3.13.5-xwl6x7ir5lm2vu3453y7ca3io4fwlqau/bin/python"
+        ;;
+    *)
+
+        SPACK_PYTHON=""
+        ;;
+esac
+export SPACK_PYTHON
+
+
 # Identify and lock the python interpreter
 for cmd in "${SPACK_PYTHON:-}" python3 python python2; do
     if command -v > /dev/null "$cmd"; then
