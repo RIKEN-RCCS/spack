@@ -174,9 +174,11 @@ packages:
     - spec: ldflags="--linkfortran -SSL2 -Kopenmp"
       when: '%fj'
 # -------------------------------------------------------------------------
-  # openblas:
-  #   require:
-  #   - spec: '~dynamic_dispatch'
+  darshan-runtime:
+    require:
+    - spec: '@3.4.0 scheduler=fj ldflags=-Knolargepage'
+      when: '%fj'
+# -------------------------------------------------------------------------
   py-numpy:
     require:
     - spec: '@:2.2.6'
@@ -185,6 +187,7 @@ packages:
     require:
     - spec: '@:1.8.1'
       when: '%fj'
+# -------------------------------------------------------------------------
   adios2:
     require:
     - spec: cxxflags="-std=c++14"
@@ -196,6 +199,10 @@ packages:
   openbabel:
     require:
     - spec: ^python@3.11
+      when: '%fj'
+  openblas:
+    require:
+    - spec: '~dynamic_dispatch'
       when: '%fj'
   py-pymol:
     require:

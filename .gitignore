@@ -1,3 +1,11 @@
+/var/spack/fugaku-packages/**/*.tar.gz
+/var/spack/fugaku-packages/**/*.tgz
+/var/spack/fugaku-packages/**/*.out
+/var/spack/fugaku-packages/**/*.err
+/var/spack/fugaku-packages/**/*.stats
+/var/spack/fugaku-packages/**/output.*
+
+
 ##########################
 # Spack-specific ignores #
 ##########################
