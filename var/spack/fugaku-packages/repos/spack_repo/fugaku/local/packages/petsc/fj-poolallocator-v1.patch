@@ -1,0 +1,12 @@
+diff --git a/include/petsc/private/cpp/object_pool.hpp b/include/petsc/private/cpp/object_pool.hpp
+--- a/include/petsc/private/cpp/object_pool.hpp
++++ b/include/petsc/private/cpp/object_pool.hpp
+@@ -62,7 +62,7 @@
+   using size_type  = std::size_t;
+   using align_type = align_val_t;
+   using pool_type  = std::vector<std::pair<align_type, UnorderedMap<size_type, std::vector<void *>>>>;
+ 
+-  PoolAllocator() noexcept                            = default;
++  PoolAllocator() noexcept : locked_(0) {}
+   PoolAllocator(PoolAllocator &&) noexcept            = default;
+   PoolAllocator &operator=(PoolAllocator &&) noexcept = default;

@@ -1,0 +1,66 @@
+--- a/Build/makefile	2021-11-19 07:10:22.000000000 +0900
++++ b/Build/makefile	2024-02-08 17:11:10.000000000 +0900
+@@ -40,6 +40,7 @@ GITINFO=-fpp $(GITINFO_BASE) -DBUILDDATE
+ GITINFOGNU=-cpp $(GITINFO_BASE) -DBUILDDATE_PP=\""$(BUILD_DATE)\""
+ GITINFOXLF=-qsuffix=cpp=f90 '-WF,-DGITHASH_PP=\"$(GIT_HASH)\",-DGITDATE_PP=\"$(GIT_DATE)\",-DBUILDDATE_PP=\"$(BUILD_DATE_XLF)\"'
+ GITINFOPGI=-Mpreprocess $(GITINFO_BASE) -DBUILDDATE_PP=\""$(BUILD_DATE)\""
++GITINFOFUGAKU=-cpp $(GITINFO_BASE) -DBUILDDATE_PP=\""$(BUILD_DATE)\""  #edit sakakura
+ GFORTRAN_OPTIONS=
+ 
+ ifeq ($(shell echo "check_quotes"),"check_quotes")
+@@ -310,6 +311,15 @@ mpi_xlf_aix : obj     = fds_jump_mpi_64
+ mpi_xlf_aix : $(obj_mpi)
+ 	$(FCOMPL) $(FFLAGS) -o $(obj) $(obj_mpi)
+ 
++#*** Fugaku Compilers *** #edit  FOCUS
++mpi_fujitsu_linux_arm : FFLAGS = -Nalloc_assign -O3  $(GITINFOFUGAKU) $(FFLAGSMKL_GNU_OPENMPI) $(GFORTRAN_OPTIONS)  #-Nlst=t
++mpi_fujitsu_linux_arm : LFLAGSMKL = $(LFLAGSMKL_GNU_OPENMPI)
++mpi_fujitsu_linux_arm : FCOMPL = mpifrt
++mpi_fujitsu_linux_arm : FOPENMPFLAGS = -Kopenmp,eval,fp_contract,fp_relaxed,fz,ilfunc,mfunc,omitfp,nosimd
++mpi_fujitsu_linux_arm : obj = fds_mpi_fujitsu_linux_arm
++mpi_fujitsu_linux_arm : setup $(obj_mpi)
++	$(FCOMPL) $(FFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) -SSL2BLAMP
++
+ 
+ #*** GNU Compilers ***
+ 
+@@ -353,6 +363,16 @@ mpi_gnu_osx_64_dv : obj = fds_mpi_gnu_os
+ mpi_gnu_osx_64_dv : setup $(obj_mpi)
+ 	$(FCOMPL) $(FFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) $(LFLAGSMKL)
+ 
++#*** GNU Compilers in arm ***
++
++mpi_gnu_linux_arm : FFLAGS = -O2 -std=f2018 -frecursive -ffpe-summary=none -fall-intrinsics $(GITINFOGNU) $(GNU_COMPINFO) $(GFORTRAN_OPTIONS)
++mpi_gnu_linux_arm : LFLAGSMKL = 
++mpi_gnu_linux_arm : FCOMPL = mpifort
++mpi_gnu_linux_arm : FOPENMPFLAGS = -fopenmp
++mpi_gnu_linux_arm : obj = fds_mpi_gnu_linux_arm
++mpi_gnu_linux_arm : setup $(obj_mpi)
++	$(FCOMPL) $(FFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) $(LFLAGSMKL)
++
+ # *** Object Dependencies ***
+ 
+ prec.o :
+
+diff -urpN a/Build/mpi_fujitsu_linux_arm/make_fds.sh b/Build/mpi_fujitsu_linux_arm/make_fds.sh
+--- a/Build/mpi_fujitsu_linux_arm/make_fds.sh   1970-01-01 09:00:00.000000000 +0900
++++ b/Build/mpi_fujitsu_linux_arm/make_fds.sh   2024-02-09 10:13:26.000000000 +0900
+@@ -0,0 +1,6 @@
++#!/bin/bash
++dir=`pwd`
++target=${dir##*/}
++
++echo Building $target
++make -j4 VPATH="../../Source" -f ../makefile $target
+
+diff -urpN a/Build/mpi_gnu_linux_arm/make_fds.sh b/Build/mpi_gnu_linux_arm/make_fds.sh
+--- a/Build/mpi_gnu_linux_arm/make_fds.sh       1970-01-01 09:00:00.000000000 +0900
++++ b/Build/mpi_gnu_linux_arm/make_fds.sh       2024-02-09 10:13:30.000000000 +0900
+@@ -0,0 +1,6 @@
++#!/bin/bash
++dir=`pwd`
++target=${dir##*/}
++
++echo Building $target
++make -j4 VPATH="../../Source" -f ../makefile $target
+

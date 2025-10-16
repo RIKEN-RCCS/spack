@@ -1,0 +1,38 @@
+--- a/cpp/cmake_modules/SetupCxxFlags.cmake	2025-08-29 11:36:43.000000000 +0900
++++ b/cpp/cmake_modules/SetupCxxFlags.cmake	2025-08-29 11:37:50.000000000 +0900
+@@ -310,7 +310,7 @@ if("${BUILD_WARNING_LEVEL}" STREQUAL "CH
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} /wd4267")
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} /wd4838")
+   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" OR CMAKE_CXX_COMPILER_ID STREQUAL
+-                                                        "Clang")
++                                                        "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "FujitsuClang")
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Wall")
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Wextra")
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Wdocumentation")
+@@ -353,7 +353,7 @@ elseif("${BUILD_WARNING_LEVEL}" STREQUAL
+     # https://docs.microsoft.com/en-us/cpp/build/reference/compiler-option-warning-level
+     # /wdnnnn disables a warning where "nnnn" is a warning number
+   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" OR CMAKE_CXX_COMPILER_ID STREQUAL
+-                                                        "Clang")
++                                                        "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "FujitsuClang")
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Weverything")
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Wno-c++98-compat")
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Wno-c++98-compat-pedantic")
+@@ -385,7 +385,7 @@ else()
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} /W3")
+   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"
+          OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+-         OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
++         OR CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "FujitsuClang")
+     set(CXX_COMMON_FLAGS "${CXX_COMMON_FLAGS} -Wall")
+   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel" OR CMAKE_CXX_COMPILER_ID STREQUAL
+                                                    "IntelLLVM")
+@@ -439,7 +439,7 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "G
+   endif()
+ 
+ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" OR CMAKE_CXX_COMPILER_ID STREQUAL
+-                                                      "Clang")
++                                                      "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "FujitsuClang")
+   # Clang options for all builds
+ 
+   # Using Clang with ccache causes a bunch of spurious warnings that are

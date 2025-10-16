@@ -1,0 +1,33 @@
+diff -r 146727f129a6 -r b255d5d23e65 src/OSspecific/POSIX/memInfo/memInfo.C
+--- a/OpenFOAM-v2106/src/OSspecific/POSIX/memInfo/memInfo.C    Fri Sep 22 16:37:54 2023 +0900
++++ b/OpenFOAM-v2106/src/OSspecific/POSIX/memInfo/memInfo.C    Fri Sep 22 16:46:00 2023 +0900
+@@ -100,17 +100,17 @@
+
+             if (key == "VmPeak")
+             {
+-                peak_ = std::stoi(line.substr(delim+1));
++                peak_ = std::stol(line.substr(delim+1));
+                 --nkeys;
+             }
+             else if (key == "VmSize")
+             {
+-                size_ = std::stoi(line.substr(delim+1));
++                size_ = std::stol(line.substr(delim+1));
+                 --nkeys;
+             }
+             else if (key == "VmRSS")
+             {
+-                rss_ = std::stoi(line.substr(delim+1));
++                rss_ = std::stol(line.substr(delim+1));
+                 --nkeys;
+             }
+         }
+@@ -148,7 +148,7 @@
+
+             if (key == "MemFree")
+             {
+-                free_ = std::stoi(line.substr(delim+1));
++                free_ = std::stol(line.substr(delim+1));
+                 --nkeys;
+             }
+         }

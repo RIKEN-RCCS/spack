@@ -1,0 +1,10 @@
+--- sirius.org/src/unit_cell/atom.hpp	2025-04-24 11:59:55.000000000 +0900
++++ sirius/src/unit_cell/atom.hpp	2025-04-24 12:00:27.000000000 +0900
+@@ -29,6 +29,7 @@
+ #include "core/profiler.hpp"
+ #include "atom_symmetry_class.hpp"
+ #include "function3d/spheric_function.hpp"
++#include <numeric>
+ 
+ namespace sirius {
+ 

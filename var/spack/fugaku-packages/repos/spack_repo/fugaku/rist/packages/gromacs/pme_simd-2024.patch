@@ -1,0 +1,71 @@
+From 5176d97ebf23d261bd06053fc1cc2cf4c240efee Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Thu, 21 Dec 2023 16:31:24 +0900
+Subject: [PATCH 2/6] pme_simd-2024
+
+---
+ .../impl_arm_sve/impl_arm_sve_definitions.h   |  2 +-
+ .../impl_arm_sve/impl_arm_sve_util_float.h    | 34 +++++++++++++++++++
+ 2 files changed, 35 insertions(+), 1 deletion(-)
+
+diff --git a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_definitions.h b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_definitions.h
+index e00c1e2c76..06873cb0a7 100644
+--- a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_definitions.h
++++ b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_definitions.h
+@@ -93,7 +93,7 @@
+ 
+ 
+ #if GMX_SIMD_FLOAT_WIDTH > 4
+-#    define GMX_SIMD_HAVE_4NSIMD_UTIL_FLOAT 0
++#    define GMX_SIMD_HAVE_4NSIMD_UTIL_FLOAT 1
+ #endif
+ 
+ #if GMX_SIMD_DOUBLE_WIDTH > 4
+diff --git a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_util_float.h b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_util_float.h
+index 7abfe3d74c..57cf71bd79 100644
+--- a/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_util_float.h
++++ b/src/gromacs/simd/include/gromacs/simd/impl_arm_sve/impl_arm_sve_util_float.h
+@@ -390,6 +390,40 @@ static inline void gmx_simdcall gatherLoadTransposeHsimd(const float*       base
+     v1->simdInternal_ = svuzp2(_v0, _v1);
+ }
+ 
++#if GMX_SIMD_FLOAT_WIDTH > 8
++static inline SimdFloat gmx_simdcall loadUNDuplicate4(const float* m)
++{
++    svbool_t pg = svwhilelt_b32(0, GMX_SIMD_FLOAT_WIDTH / 4);
++    svfloat32_t res = svld1_f32(pg, m);
++    res = svzip1_f32(res, res);
++    res = svzip1_f32(res, res);
++    return res;
++}
++
++static inline SimdFloat gmx_simdcall load4DuplicateN(const float* m)
++{
++    svbool_t pg = SVE_FLOAT4_MASK;
++#if 0
++    svfloat32_t res = svld1_f32(pg, m);
++    res = svdupq_lane_f32(res, 0);
++    return res;
++#else
++    return svld1rq_f32(pg, m);
++#endif
++}
++#endif
++
++#if GMX_SIMD_FLOAT_WIDTH >= 8
++static inline SimdFloat gmx_simdcall loadU4NOffset(const float* m, int offset)
++{
++    svint32_t offsets = svindex_s32(0, offset);
++    offsets = svzip1_s32(offsets, offsets);
++    offsets = svzip1_s32(offsets, offsets);
++    svbool_t pg = svptrue_b32();
++    offsets = svadd_s32_x(pg, offsets, svdupq_lane_s32(svindex_s32(0, 1), 0));
++    return svld1_gather_s32index_f32(pg, m, offsets);
++}
++#endif
+ } // namespace gmx
+ 
+ #endif // GMX_SIMD_IMPL_ARM_SVE_UTIL_FLOAT_H
+-- 
+2.27.0
+

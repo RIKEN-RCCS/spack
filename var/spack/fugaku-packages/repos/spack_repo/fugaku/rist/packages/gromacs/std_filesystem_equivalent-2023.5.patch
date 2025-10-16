@@ -1,0 +1,67 @@
+From 862aec8e8ddd7c68aebdb4ade70aa8e1400178b5 Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Thu, 30 May 2024 14:46:05 +0900
+Subject: [PATCH 8/8] FindLibStdCpp.cmake: try -lstdc++fs and -lc++fs to
+ support GCC 8 and LLVM 7
+
+---
+ cmake/FindLibStdCpp.cmake  | 25 +++++++++++++++++++++++++
+ src/gromacs/CMakeLists.txt |  3 +++
+ 2 files changed, 28 insertions(+)
+
+diff --git a/cmake/FindLibStdCpp.cmake b/cmake/FindLibStdCpp.cmake
+index 093a4fc890..83e85f0a6a 100644
+--- a/cmake/FindLibStdCpp.cmake
++++ b/cmake/FindLibStdCpp.cmake
+@@ -75,9 +75,34 @@ size_t foo()
+ }")
+ check_cxx_source_compiles("${SAMPLE_CODE_TO_TEST_CXX17}" CXX17_COMPILES_SIMPLY)
+ 
++if (CXX17_COMPILES_SIMPLY)
++    # The compiler has been set up properly to find a standard
++    # library, and if so GROMACS should leave it alone since
++    # no specific g++ compiler were requested.
++    return()
++endif()
++
++unset (CXX17_COMPILES_SIMPLY CACHE)
++set (CMAKE_REQUIRED_LIBRARIES stdc++fs)
++check_cxx_source_compiles("${SAMPLE_CODE_TO_TEST_CXX17}" CXX17_COMPILES_SIMPLY)
++
++if (CXX17_COMPILES_SIMPLY)
++    # The compiler has been set up properly to find a standard
++    # library, and if so GROMACS should leave it alone.
++    set (GMX_FS_LIBRARY "stdc++fs")
++    unset (CMAKE_REQUIRED_LIBRARIES)
++    return()
++endif()
++
++unset (CXX17_COMPILES_SIMPY CACHE)
++set (CMAKE_REQUIRED_LIBRARIES c++fs)
++check_cxx_source_compiles("${SAMPLE_CODE_TO_TEST_CXX17}" CXX17_COMPILES_SIMPLY)
++
+ if (CXX17_COMPILES_SIMPLY)
+     # The compiler has been set up properly to find a standard
+     # library, and if so GROMACS should leave it alone.
++    set (GMX_FS_LIBRARY "c++fs")
++    unset (CMAKE_REQUIRED_LIBRARIES)
+     return()
+ endif()
+ 
+diff --git a/src/gromacs/CMakeLists.txt b/src/gromacs/CMakeLists.txt
+index 3de52bdb82..4b3599a850 100644
+--- a/src/gromacs/CMakeLists.txt
++++ b/src/gromacs/CMakeLists.txt
+@@ -424,6 +424,9 @@ target_link_libraries(libgromacs PRIVATE
+ if (GMX_OPENMP)
+     target_link_libraries(libgromacs PUBLIC OpenMP::OpenMP_CXX)
+ endif()
++if (DEFINED GMX_FS_LIBRARY)
++    target_link_libraries(libgromacs PUBLIC ${GMX_FS_LIBRARY})
++endif()
+ set_target_properties(libgromacs PROPERTIES
+                       OUTPUT_NAME "gromacs${GMX_LIBS_SUFFIX}"
+                       SOVERSION ${LIBRARY_SOVERSION_MAJOR}
+-- 
+2.39.3
+

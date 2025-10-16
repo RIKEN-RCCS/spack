@@ -1,0 +1,51 @@
+Script started on 2024-03-14 17:16:51+09:00
+sh-4.4$ bash
+[r00046@a25-7109c alamode]$ ls
+package.py
+[r00046@a25-7109c alamode]$ pwd
+/vol0004/apps/oss/spack-v0.21/var/spack/repos/local/packages/alamode/r00062/recipe/alamode
+[r00046@a25-7109c alamode]$ cd ../../
+[r00046@a25-7109c r00062]$ ls
+install.txt  recipe/  test.txt	yaml/
+[r00046@a25-7109c r00062]$ cd ..     ls *
+install.txt  test.txt
+
+recipe:
+alamode/
+
+yaml:
+compilers.yaml	packages.yaml  upstreams.yaml
+[r00046@a25-7109c r00062]$ ls*/*    */*
+yaml/compilers.yaml  yaml/packages.yaml  yaml/upstreams.yaml
+
+recipe/alamode:
+package.py
+[r00046@a25-7109c r00062]$ cd /home/rist/r00046/data/work/APP-test/alamode/20240307/alamode-v.1.5.0/test
+[r00046@a25-7109c test]$ . /vol0004/apps/oss/spack-v0.21/share/spack/setup-env.sh
+[r00046@a25-7109c test]$ spack load alamode@1.5.0
+[r00046@a25-7109c test]$ python test_si.fugaku.py > test_si.fugaku.log 2>&1
+[r00046@a25-7109c test]$ more test_si.fugaku.log
+Traceback (most recent call last):
+  File "test_si.fugaku.py", line 7, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
+[r00046@a25-7109c test]$ 
+[r00046@a25-7109c test]$ numpy [1@s[1@p[1@a[1@c[1@k[1@ [1@l[1@o[1@a[1@d[1@ [1@p[1@y[1@-numpy @1.22.4
+[r00046@a25-7109c test]$ python test_si.fugaku.py > test_si.fugaku.log 2>&1
+[r00046@a25-7109c test]$ more test_si.fugaku.log
+[WARN] xos LPG 2003 - Failed to map HugeTLBfs for data/bss: Layout problem with segments 0 and 1:
+	Segments would overlap.
+[WARN] xos LPG 2003 - Failed to map HugeTLBfs for data/bss: Layout problem with segments 0 and 1:
+	Segments would overlap.
+[WARN] xos LPG 2003 - Failed to map HugeTLBfs for data/bss: Layout problem with segments 0 and 1:
+	Segments would overlap.
+[WARN] xos LPG 2003 - Failed to map HugeTLBfs for data/bss: Layout problem with segments 0 and 1:
+	Segments would overlap.
+Silicon ALM --> pass
+Silicon ANPHON --> pass
+[r00046@a25-7109c test]$ exit
+exit
+sh-4.4$ exit
+exit
+
+Script done on 2024-03-14 17:27:28+09:00

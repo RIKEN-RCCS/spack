@@ -1,0 +1,11 @@
+--- spack-src/test/lobcg_spingc_hcor.sh.orig	2020-06-02 15:09:16.000000000 +0900
++++ spack-src/test/lobcg_spingc_hcor.sh	2020-12-02 10:39:11.000000000 +0900
+@@ -44,7 +44,7 @@
+ 
+ 
+ 
+-${MPIRUN} ../../src/HPhi -sdry stan.in
++mpiexec -np 1 ../../src/HPhi -sdry stan.in
+ 
+ echo   "ThreeBodyG  green3.def" >> namelist.def
+ echo   "FourBodyG   green4.def" >> namelist.def

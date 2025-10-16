@@ -1,0 +1,51 @@
+diff -U 0 -rpN a/Build/fjmpi_fujitsu_linux/make_fds.sh b/Build/fjmpi_fujitsu_linux/make_fds.sh
+--- a/Build/fjmpi_fujitsu_linux/make_fds.sh	1970-01-01 09:00:00.000000000 +0900
++++ b/Build/fjmpi_fujitsu_linux/make_fds.sh	2024-02-19 15:44:40.000000000 +0900
+@@ -0,0 +1,6 @@
++#!/bin/bash
++dir=`pwd`
++target=${dir##*/}
++
++echo Building $target
++make -j4 VPATH="../../Source" -f ../makefile $target
+diff -U 0 -rpN a/Build/fjmpi_gnu_linux/make_fds.sh b/Build/fjmpi_gnu_linux/make_fds.sh
+--- a/Build/fjmpi_gnu_linux/make_fds.sh	1970-01-01 09:00:00.000000000 +0900
++++ b/Build/fjmpi_gnu_linux/make_fds.sh	2024-02-19 15:44:33.000000000 +0900
+@@ -0,0 +1,6 @@
++#!/bin/bash
++dir=`pwd`
++target=${dir##*/}
++
++echo Building $target
++make -j4 VPATH="../../Source" -f ../makefile $target
+diff -U 0 -rpN a/Build/makefile b/Build/makefile
+--- a/Build/makefile	2024-02-19 15:15:32.000000000 +0900
++++ b/Build/makefile	2024-02-19 15:22:30.000000000 +0900
+@@ -49,0 +50 @@ GITINFOPGI=-Mpreprocess $(GITINFO_BASE)
++GITINFOFUGAKU=-cpp $(GITINFO_BASE) -DBUILDDATE_PP=\""$(BUILD_DATE)\""  #edit sakakura
+@@ -320 +321 @@ ompi_intel_osx_openmp_dv : setup $(obj_m
+-ompi_gnu_linux : FFLAGS = -m64 -O2 -std=f2018 -frecursive -ffpe-summary=none -fall-intrinsics $(GITINFOGNU) $(GNU_COMPINFO) $(FFLAGSMKL_GNU_OPENMPI) $(GFORTRAN_OPTIONS)
++ompi_gnu_linux : FFLAGS = -O2 -std=f2018 -frecursive -ffpe-summary=none -fall-intrinsics $(GITINFOGNU) $(GNU_COMPINFO) $(FFLAGSMKL_GNU_OPENMPI) $(GFORTRAN_OPTIONS)
+@@ -328 +329 @@ ompi_gnu_linux : setup $(obj_mpi)
+-ompi_gnu_linux_db : FFLAGS = -m64 -O0 -std=f2018 -ggdb -Wall -Werror -Wunused-parameter -Wcharacter-truncation -Wno-target-lifetime -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -frecursive -ffpe-summary=none -fall-intrinsics -fbounds-check $(GITINFOGNU) $(GNU_COMPINFO) $(FFLAGSMKL_GNU_OPENMPI) $(GFORTRAN_OPTIONS)
++ompi_gnu_linux_db : FFLAGS = -O0 -std=f2018 -ggdb -Wall -Werror -Wunused-parameter -Wcharacter-truncation -Wno-target-lifetime -fcheck=all -fbacktrace -ffpe-trap=invalid,zero,overflow -frecursive -ffpe-summary=none -fall-intrinsics -fbounds-check $(GITINFOGNU) $(GNU_COMPINFO) $(FFLAGSMKL_GNU_OPENMPI) $(GFORTRAN_OPTIONS)
+@@ -357,0 +359,19 @@ ompi_gnu_osx_dv : setup $(obj_mpi)
++	$(FCOMPL) $(FFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) $(LFLAGSMKL)
++
++#*** Fugaku Compilers *** #edit  FOCUS
++fjmpi_fujitsu_linux : FFLAGS = -Nalloc_assign -O3  $(GITINFOFUGAKU) $(FFLAGSMKL_GNU_OPENMPI) $(GFORTRAN_OPTIONS)  #-Nlst=t
++fjmpi_fujitsu_linux : LFLAGSMKL = $(LFLAGSMKL_GNU_OPENMPI)
++fjmpi_fujitsu_linux : FCOMPL = mpifrt
++fjmpi_fujitsu_linux : FOPENMPFLAGS = -Kopenmp,eval,fp_contract,fp_relaxed,fz,ilfunc,mfunc,omitfp,nosimd
++fjmpi_fujitsu_linux : obj = fds_fjmpi_fujitsu_linux
++fjmpi_fujitsu_linux : setup $(obj_mpi)
++	$(FCOMPL) $(FFLAGS) $(FOPENMPFLAGS) -o $(obj) $(obj_mpi) -SSL2BLAMP
++
++#*** GNU Compilers in arm ***
++
++fjmpi_gnu_linux : FFLAGS = -O2 -std=f2018 -frecursive -ffpe-summary=none -fall-intrinsics $(GITINFOGNU) $(GNU_COMPINFO) $(GFORTRAN_OPTIONS)
++fjmpi_gnu_linux : LFLAGSMKL = 
++fjmpi_gnu_linux : FCOMPL = mpifort
++fjmpi_gnu_linux : FOPENMPFLAGS = -fopenmp
++fjmpi_gnu_linux : obj = fds_fjmpi_gnu_linux
++fjmpi_gnu_linux : setup $(obj_mpi)

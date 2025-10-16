@@ -1,0 +1,18 @@
+***** 13 Dec. 2021 *****
+Author: Yukihiro Ota (RIST) (yota@rist.or.jp) 
+
+package.py is made of that in v0.17.0
+
+* Summary of major changes
+1. Modify patch() to properly set compilers in cmake/items-macros.cmake.in.
+   This change is need for using kim-api outside spack intall command 
+   when obtaining data from OpenKIM database.
+
+***** 8 Dec. 2021 *****
+Author: Yukihiro Ota (RIST) (yota@rist.or.jp) 
+
+package.py is made of that in v0.17.0
+
+* Summary of major changes
+1. Add patch for v2.2.1
+2. Modify patch() directive with a proper condition.

@@ -1,0 +1,119 @@
+.SUFFIXES:
+.SUFFIXES: .o .F .f .F90 .f90 .c .mod
+
+# Platform    : GNU Linux (EM64T/AMD64)
+# Prog. model : MPI parallel
+# Compiler    : Intel Fortran compiler
+# BLAS/LAPACK : Intel Math Kernel Library (MKL)
+# FFT         : Intel MKL with FFTW3 interface
+###########################################################################
+###<< PLEASE CHANGE THE VARIABLES BELOW ACCORDING TO YOUR ENVIRONMENT >>###
+###########################################################################
+F90 = mpifrtpx
+CC  = fccpx
+CPP = 
+AR  = ar qv
+LINK = mpifrtpx -Kparallel
+F90FLAGS = -O3 -Kparallel,ocl,preex,array_private,auto,simd=2,openmp -c -V -Qa,d,i,p,t,x -Koptmsg=2 -C 0
+F77FLAGS = -Kparallel,ocl,preex,array_private,auto,simd=2,openmp -c -V -Qa,d,i,p,t,x -Koptmsg=2 -C 0
+CFLAGS = -Kfast,parallel,ocl,preex,array_private,auto,simd=2,openmp -DINTEL
+
+ESM = yes
+ifdef ESM
+CPPESM=-DENABLE_ESM_PACK
+LESM=-lesm
+else
+CPPESM=
+endif
+
+CPPFLAGS = -DLinux -DFFTW3 -D_MPIFFT_ -D_USE_DATE_AND_TIME_ -D_POT_SMOOTHING_ -DTRANSPOSE -DGGA_ATOMIC_WITH_NEW_GNCPP -DREMOVE_PC_FROM_FORCE -D_USE_LAPACK_ -D_USE_SCALAPACK_ -D_POSITRON_ -D_FAST_WAY_ -DUSE_NONBLK_COMM -D_HEAP_SORT_ -DFFT_ALLTOALL -DPOST3D -DUSE_NONBLK_COMM -DRMM_NONLOCAL_NEW ${CPPESM}
+LFLAGS = 
+F90FLAGS_FIXED = -extend_source -Fl -fixed
+F90FLAGS_FREE = -extend_source -Fl
+
+#FFTW3_DIR=/vol0001/apps/oss/spack-latest/opt/spack/linux-rhel8-a64fx/fj-4.2.0/fftw-3.3.8-3ojdo6i4rd3asyyonmrgxthvprum2gpa/
+#INCLUDE=-I${FFTW3_DIR}/include
+#LIBS = -L./ ${LESM} -lfftw3 -lfftw3_omp -lfftw3_mpi -SSL2BLAMP $(KLINK) -SCALAPACK -Kopenmp
+#LIBS = -L./ ${LESM} -lfftw3 -lfftw3_omp -lfftw3_mpi -SSL2BLAMP $(KLINK) -SCALAPACK -Kopenmp
+LIBS = -L./ ${LESM} -lfftw3 -lfftw3_omp -lfftw3_mpi -SSL2BLAMP -lscalapack -Kopenmp
+#LIBS = -L./ ${LESM} libfftw3_omp.a libfftw3.a -SSL2BLAMP $(KLINK) -SCALAPACK -Kopenmp
+###########################################################################
+###<< PLEASE CHANGE THE VARIABLES ABOVE ACCORDING TO YOUR ENVIRONMENT >>###
+###########################################################################
+
+ifdef ESM
+ESM_LIB = libesm.a
+else
+ESM_LIB =
+endif
+LAPACK = 
+FFTOBJECT =  mpifft.o
+OBJ_INPUTPARSE = input_parse.o
+
+include Makefile.tmpl
+
+PHASE_OBJECTS = $(PHASE_LOWER_MODULES) $(FFTOBJECT) $(PHASE_UPPER_MODULES) $(PHASE_F_SUBROUTINES) $(PHASE_F_OTHERSUBS) $(PHASE_OBJECTSF77) $(OBJ_INPUTPARSE)
+
+EKCAL_OBJECTS = $(EKCAL_LOWER_MODULES) $(FFTOBJECT) $(EKCAL_UPPER_MODULES) $(EKCAL_F_SUBROUTINES) $(EKCAL_F_OTHERSUBS) $(EKCAL_OBJECTSF77) $(OBJ_INPUTPARSE)
+
+EPS_OBJECTS = $(EPS_LOWER_MODULES) $(FFTOBJECT) $(EPS_UPPER_MODULES) $(EPS_F_SUBROUTINES) $(EPS_F_OTHERSUBS) $(EPS_OBJECTSF77) $(OBJ_INPUTPARSE)
+
+TDLR_OBJECTS = $(TDLR_LOWER_MODULES) $(FFTOBJECT) $(TDLR_UPPER_MODULES) $(TDLR_F_SUBROUTINES) $(TDLR_F_OTHERSUBS) $(TDLR_OBJECTSF77) $(OBJ_INPUTPARSE)
+
+all : phase epsmain
+
+ifdef ESM
+phase : $(ESM_LIB) $(LAPACK) $(PHASE_OBJECTS) $(NLOBJ)
+	$(LINK) $(PHASE_OBJECTS) $(NLOBJ) $(LFLAGS) $(LIBS) -o $@
+else
+phase : $(LAPACK) $(PHASE_OBJECTS) $(NLOBJ)
+	$(LINK) $(PHASE_OBJECTS) $(NLOBJ) $(LFLAGS) $(LIBS) -o $@
+endif
+
+ekcal : $(LAPACK) $(EKCAL_OBJECTS) $(NLOBJ)
+	$(LINK) $(EKCAL_OBJECTS) $(NLOBJ) $(LFLAGS) $(LIBS) -o $@
+
+epsmain : $(LAPACK) $(EPS_OBJECTS) $(NLOBJ)
+	$(LINK) $(EPS_OBJECTS) $(NLOBJ) $(LFLAGS) $(LIBS) -o $@
+
+tdlrmain : $(LAPACK) $(TDLR_OBJECTS) $(NLOBJ)
+	$(LINK) $(TDLR_OBJECTS) $(NLOBJ) $(LFLAGS) $(LIBS) -o $@
+
+ifdef NO_MPI
+libesm.a:
+	cd EsmPack; make INCLUDE="$(INCLUDE)" FORTRAN="$(F90)" LIBFLAG="$(LIBS)" MPIFLAG="" AR="$(AR)"
+else
+libesm.a:
+	cd EsmPack; make INCLUDE="$(INCLUDE)" FORTRAN="$(F90)" LIBFLAG="$(LIBS)" MPIFLAG="-D__MPI__" AR="$(AR)"
+endif
+
+liblapack.a:
+	cd LAPACK; make F77="$(F90)" F77FLAGS="$(F77FLAGS)" AR="$(AR)"
+
+libblas.a:
+	cd BLAS; make F77="$(F90)" F77FLAGS="$(F77FLAGS)" AR="$(AR)"
+
+$(OBJ_INPUTPARSE):$(@:.o=.c) $(@:.o=.h)
+	$(CC) -c $(CFLAGS) $(@:.o=.c)
+
+.f.o:
+	$(F90) -c $(F77FLAGS) $*.f
+
+.f90.o:
+	$(F90) -c $(F90FLAGS) $*.f90
+
+.F.o:
+	$(F90) -c $(F77FLAGS) $(CPPFLAGS) $*.F
+
+.F90.o:
+	$(F90) -c $(F90FLAGS) $(CPPFLAGS) $*.F90
+
+clean:
+	\rm -f *.o *.mod *.a *.lib *.L *.list phase epsmain
+	\cd LAPACK; make clean
+	\cd BLAS; make clean
+	\cd EsmPack; make clean
+
+install: phase epsmain
+	\mv -f phase ../bin/phase.3d
+	\mv -f epsmain ../bin/epsmain.3d

@@ -1,0 +1,270 @@
+diff --git a/src/density/density.cpp b/src/density/density.cpp
+index 6716957..eceda14 100644
+--- a/src/density/density.cpp
++++ b/src/density/density.cpp
+@@ -556,7 +556,7 @@ Density::generate_paw_density()
+ 
+     PROFILE("sirius::Density::generate_paw_density");
+ 
+-    #pragma omp parallel for
++    //#pragma omp parallel for
+     for (auto it : unit_cell_.spl_num_paw_atoms()) {
+         generate_paw_density(it.li);
+     }
+@@ -778,11 +778,11 @@ add_k_point_contribution_dm_fplapw(Simulation_context const& ctx__, K_point<T> c
+     auto one = la::constant<std::complex<double>>::one();
+ 
+     /* add |psi_j> n_j <psi_j| to density matrix */
+-    #pragma omp parallel
++    //#pragma omp parallel
+     {
+         mdarray<std::complex<double>, 3> wf1({uc.max_mt_basis_size(), ctx__.num_bands(), ctx__.num_spins()});
+         mdarray<std::complex<double>, 3> wf2({uc.max_mt_basis_size(), ctx__.num_bands(), ctx__.num_spins()});
+-        #pragma omp for
++        //#pragma omp for
+         for (auto it : kp__.spinor_wave_functions().spl_num_atoms()) {
+             int ia            = it.i;
+             int mt_basis_size = uc.atom(ia).type().mt_basis_size();
+diff --git a/src/hamiltonian/hamiltonian_k.cpp b/src/hamiltonian/hamiltonian_k.cpp
+index 995cb43..5df0c44 100644
+--- a/src/hamiltonian/hamiltonian_k.cpp
++++ b/src/hamiltonian/hamiltonian_k.cpp
+@@ -858,7 +858,7 @@ Hamiltonian_k<T>::apply_fv_h_o(bool apw_only__, bool phi_is_lo__, wf::band_range
+ 
+     /* apply APW-lo part of Hamiltonian to lo- part of wave-functions */
+     auto apply_hmt_apw_lo = [this, &ctx, &phi__, la, mem, &b__, &spl_atoms](wf::Wave_functions_mt<T>& h_apw_lo__) {
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_atoms) {
+             int tid    = omp_get_thread_num();
+             int ia     = it.i;
+@@ -886,7 +886,7 @@ Hamiltonian_k<T>::apply_fv_h_o(bool apw_only__, bool phi_is_lo__, wf::band_range
+     auto apply_omt_apw_lo = [this, &ctx, &phi__, &b__, &spl_atoms](wf::Wave_functions_mt<T>& o_apw_lo__) {
+         o_apw_lo__.zero(memory_t::host, wf::spin_index(0), wf::band_range(0, b__.size()));
+ 
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_atoms) {
+             int ia     = it.i;
+             auto& atom = ctx.unit_cell().atom(ia);
+@@ -916,7 +916,7 @@ Hamiltonian_k<T>::apply_fv_h_o(bool apw_only__, bool phi_is_lo__, wf::band_range
+ 
+     auto appy_hmt_lo_lo = [this, &ctx, &phi__, la, mem, &b__, &spl_atoms](wf::Wave_functions<T>& hphi__) {
+         /* lo-lo contribution */
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_atoms) {
+             int tid    = omp_get_thread_num();
+             auto ia    = it.i;
+@@ -939,7 +939,7 @@ Hamiltonian_k<T>::apply_fv_h_o(bool apw_only__, bool phi_is_lo__, wf::band_range
+ 
+     auto appy_omt_lo_lo = [this, &ctx, &phi__, &b__, &spl_atoms](wf::Wave_functions<T>& ophi__) {
+         /* lo-lo contribution */
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_atoms) {
+             auto ia    = it.i;
+             auto& atom = ctx.unit_cell().atom(ia);
+@@ -973,7 +973,7 @@ Hamiltonian_k<T>::apply_fv_h_o(bool apw_only__, bool phi_is_lo__, wf::band_range
+ 
+     auto appy_hmt_apw_apw = [this, &ctx, la, mem, &b__](int atom_begin__, wf::Wave_functions_mt<T> const& alm_phi__,
+                                                         wf::Wave_functions_mt<T>& halm_phi__) {
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : alm_phi__.spl_num_atoms()) {
+             int tid    = omp_get_thread_num();
+             int ia     = atom_begin__ + it.i;
+@@ -996,7 +996,7 @@ Hamiltonian_k<T>::apply_fv_h_o(bool apw_only__, bool phi_is_lo__, wf::band_range
+ 
+     auto apply_hmt_lo_apw = [this, &ctx, la, mem, &b__, &spl_atoms](wf::Wave_functions_mt<T> const& alm_phi__,
+                                                                     wf::Wave_functions<T>& hphi__) {
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_atoms) {
+             int tid    = omp_get_thread_num();
+             int ia     = it.i;
+@@ -1021,7 +1021,7 @@ Hamiltonian_k<T>::apply_fv_h_o(bool apw_only__, bool phi_is_lo__, wf::band_range
+ 
+     auto apply_omt_lo_apw = [this, &ctx, mem, &b__, &spl_atoms](wf::Wave_functions_mt<T> const& alm_phi__,
+                                                                 wf::Wave_functions<T>& ophi__) {
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_atoms) {
+             int ia     = it.i;
+             auto& atom = ctx.unit_cell().atom(ia);
+diff --git a/src/k_point/k_point_set.cpp b/src/k_point/k_point_set.cpp
+index 01b6620..41a7432 100644
+--- a/src/k_point/k_point_set.cpp
++++ b/src/k_point/k_point_set.cpp
+@@ -327,7 +327,7 @@ K_point_set::find_band_occupancies()
+     auto emin = std::numeric_limits<double>::max();
+     auto emax = std::numeric_limits<double>::lowest();
+ 
+-    #pragma omp parallel for reduction(min:emin) reduction(max:emax)
++    //#pragma omp parallel for reduction(min:emin) reduction(max:emax)
+     for (auto it : spl_num_kpoints_) {
+         for (int ispn = 0; ispn < ctx_.num_spinors(); ispn++) {
+             emin = std::min(emin, this->get<T>(it.i)->band_energy(0, ispn));
+diff --git a/src/potential/paw_potential.cpp b/src/potential/paw_potential.cpp
+index fcafc9a..6725582 100644
+--- a/src/potential/paw_potential.cpp
++++ b/src/potential/paw_potential.cpp
+@@ -98,7 +98,7 @@ Potential::generate_PAW_effective_potential(Density const& density)
+     sirius::symmetrize_mt_function(unit_cell_.symmetry(), unit_cell_.comm(), 0, ps_comp);
+ 
+     /* calculate PAW Dij matrix */
+-    #pragma omp parallel for
++    //#pragma omp parallel for
+     for (auto it : unit_cell_.spl_num_paw_atoms()) {
+         auto ia = unit_cell_.paw_atom_index(it.i);
+         calc_PAW_local_Dij(ia, paw_dij_[it.i]);
+diff --git a/src/potential/potential.hpp b/src/potential/potential.hpp
+index fb52015..04f77cd 100644
+--- a/src/potential/potential.hpp
++++ b/src/potential/potential.hpp
+@@ -671,7 +671,7 @@ class Potential : public Field4D
+         }
+         /* compute contribution from the core */
+         double ecore{0};
+-        #pragma omp parallel for reduction(+:ecore)
++        //#pragma omp parallel for reduction(+:ecore)
+         for (auto it : unit_cell_.spl_num_paw_atoms()) {
+             auto ia = unit_cell_.paw_atom_index(it.i);
+ 
+@@ -706,7 +706,7 @@ class Potential : public Field4D
+     PAW_one_elec_energy(Density const& density__) const
+     {
+         double e{0};
+-        #pragma omp parallel for reduction(+:e)
++        //#pragma omp parallel for reduction(+:e)
+         for (auto it : unit_cell_.spl_num_paw_atoms()) {
+             auto ia = unit_cell_.paw_atom_index(it.i);
+             auto dm = density__.density_matrix_aux(atom_index_t::global(ia));
+diff --git a/src/potential/xc_mt.cpp b/src/potential/xc_mt.cpp
+index 82e2557..bed16e7 100644
+--- a/src/potential/xc_mt.cpp
++++ b/src/potential/xc_mt.cpp
+@@ -321,7 +321,7 @@ Potential::xc_mt(Density const& density__)
+ {
+     PROFILE("sirius::Potential::xc_mt");
+ 
+-    #pragma omp parallel for
++    //#pragma omp parallel for
+     for (auto it : unit_cell_.spl_num_atoms()) {
+         auto& rgrid = unit_cell_.atom(it.i).radial_grid();
+         std::vector<Flm const*> rho(ctx_.num_mag_dims() + 1);
+diff --git a/src/radial/radial_integrals.cpp b/src/radial/radial_integrals.cpp
+index 9345c87..383b1b2 100644
+--- a/src/radial/radial_integrals.cpp
++++ b/src/radial/radial_integrals.cpp
+@@ -97,7 +97,7 @@ Radial_integrals_aug<jl_deriv>::generate()
+             }
+         }
+ 
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_q_) {
+             int iq = it.i;
+ 
+@@ -156,7 +156,7 @@ Radial_integrals_rho_pseudo::generate()
+ 
+         Spline<double> rho(atom_type.radial_grid(), atom_type.ps_total_charge_density());
+ 
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_q_) {
+             int iq = it.i;
+             sf::Spherical_Bessel_functions jl(0, atom_type.radial_grid(), grid_q_[iq]);
+@@ -185,7 +185,7 @@ Radial_integrals_rho_core_pseudo<jl_deriv>::generate()
+ 
+         Spline<double> ps_core(atom_type.radial_grid(), atom_type.ps_core_charge_density());
+ 
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_q_) {
+             int iq = it.i;
+             sf::Spherical_Bessel_functions jl(0, atom_type.radial_grid(), grid_q_[iq]);
+@@ -220,7 +220,7 @@ Radial_integrals_beta<jl_deriv>::generate()
+             values_(idxrf, iat) = Spline<double>(grid_q_);
+         }
+ 
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_q_) {
+             int iq = it.i;
+             sf::Spherical_Bessel_functions jl(unit_cell_.lmax(), atom_type.radial_grid(), grid_q_[iq]);
+@@ -280,7 +280,7 @@ Radial_integrals_vloc<jl_deriv>::generate()
+ 
+         auto rg = atom_type.radial_grid().segment(np);
+ 
+-        #pragma omp parallel for
++        //#pragma omp parallel for
+         for (auto it : spl_q_) {
+             int iq = it.i;
+             Spline<double> s(rg);
+diff --git a/src/unit_cell/atom.hpp b/src/unit_cell/atom.hpp
+index 3759129..088ceec 100644
+--- a/src/unit_cell/atom.hpp
++++ b/src/unit_cell/atom.hpp
+@@ -29,6 +29,7 @@
+ #include "core/profiler.hpp"
+ #include "atom_symmetry_class.hpp"
+ #include "function3d/spheric_function.hpp"
++#include <numeric>
+ 
+ namespace sirius {
+ 
+@@ -461,23 +462,48 @@ class Atom
+         std::complex<double> res{0};
+         switch (sblock) {
+             case spin_block_t::nm: {
+-                res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, nm);
++                //res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, nm);
++                res = std::complex<double>{0};
++                for (auto& x : gnt__) {
++                    res += nm(x);
++                }
++
+                 break;
+             }
+             case spin_block_t::uu: {
+-                res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, uu);
++                //res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, uu);
++                res = std::complex<double>{0};
++                for (auto& x : gnt__) {
++                    res += uu(x);
++                }
++
+                 break;
+             }
+             case spin_block_t::dd: {
+-                res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, dd);
++                //res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, dd);
++                res = std::complex<double>{0};
++                for (auto& x : gnt__) {
++                    res += dd(x);
++                }
++
+                 break;
+             }
+             case spin_block_t::ud: {
+-                res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, ud);
++                //res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, ud);
++                res = std::complex<double>{0};
++                for (auto& x : gnt__) {
++                    res += ud(x);
++                }
++
+                 break;
+             }
+             case spin_block_t::du: {
+-                res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, du);
++                //res = std::transform_reduce(gnt__.begin(), gnt__.end(), std::complex<double>{0}, std::plus{}, du);
++                res = std::complex<double>{0};
++                for (auto& x : gnt__) {
++                    res += du(x);
++                }
++
+                 break;
+             }
+             default: {

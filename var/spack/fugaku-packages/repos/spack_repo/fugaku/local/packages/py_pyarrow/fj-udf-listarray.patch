@@ -1,0 +1,10 @@
+--- a/pyarrow/src/arrow/python/udf.cc	2025-08-30 12:59:10.000000000 +0900
++++ b/pyarrow/src/arrow/python/udf.cc	2025-08-30 13:00:47.000000000 +0900
+@@ -27,6 +27,7 @@
+ #include "arrow/table.h"
+ #include "arrow/util/checked_cast.h"
+ #include "arrow/util/logging.h"
++#include <arrow/array/array_nested.h>  // for arrow::ListArray
+ 
+ namespace arrow {
+ using compute::ExecSpan;

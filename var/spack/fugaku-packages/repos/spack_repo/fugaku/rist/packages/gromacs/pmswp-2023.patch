@@ -1,0 +1,2953 @@
+From ffa3af2a89f4944e860930d8e1fa91a98f4ae4d6 Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Mon, 13 Feb 2023 14:46:23 +0900
+Subject: [PATCH 6/6] pmswp-2023
+
+---
+ cmake/gmxManageSimdKernelLibraries.cmake      |   7 +
+ src/config.h.cmakein                          |   6 +
+ .../nbnxm/kernels_simd_2xmm/kernel_inner.h.in | 435 +++++++++++
+ .../nbnxm/kernels_simd_2xmm/kernel_inner_0.h  | 435 +++++++++++
+ .../nbnxm/kernels_simd_2xmm/kernel_inner_1.h  | 526 +++++++++++++
+ .../nbnxm/kernels_simd_2xmm/kernel_inner_2.h  | 617 +++++++++++++++
+ .../nbnxm/kernels_simd_2xmm/kernel_inner_3.h  | 708 ++++++++++++++++++
+ .../nbnxm/kernels_simd_2xmm/kernel_outer.h    |  90 ++-
+ .../kernels_simd_2xmm/make_kernel_inner.py    |  14 +
+ 9 files changed, 2832 insertions(+), 6 deletions(-)
+ create mode 100644 src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner.h.in
+ create mode 100644 src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_0.h
+ create mode 100644 src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_1.h
+ create mode 100644 src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_2.h
+ create mode 100644 src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_3.h
+ create mode 100644 src/gromacs/nbnxm/kernels_simd_2xmm/make_kernel_inner.py
+
+diff --git a/cmake/gmxManageSimdKernelLibraries.cmake b/cmake/gmxManageSimdKernelLibraries.cmake
+index 47fe3b12df..ed4403d38c 100644
+--- a/cmake/gmxManageSimdKernelLibraries.cmake
++++ b/cmake/gmxManageSimdKernelLibraries.cmake
+@@ -97,6 +97,13 @@ macro(manage_simd_kernel_library name)
+     else()
+         # Triggering the compilation of the internal version of the library is handled elsewhere.
+     endif()
++
++    gmx_option_multichoice(
++        GMX_${name}_UNROLL_INNER
++        "Unrolling factor for the ${name} nonbonded kernels"
++        "0"
++        0 1 2 3)
++    mark_as_advanced(GMX_${name}_UNROLL_INNER)
+ endmacro()
+ 
+ # Inputs:
+diff --git a/src/config.h.cmakein b/src/config.h.cmakein
+index 561203e1da..cbec2593a8 100644
+--- a/src/config.h.cmakein
++++ b/src/config.h.cmakein
+@@ -155,6 +155,12 @@
+ /* Whether NBNXM and other SIMD kernels should be compiled */
+ #cmakedefine01 GMX_USE_SIMD_KERNELS
+ 
++/* Unrolling factor for the 2XMM nonbonded kernels */
++#define GMX_2XMM_UNROLL_INNER @GMX_2XMM_UNROLL_INNER@
++
++/* Unrolling factor for the 4XM nonbonded kernels */
++#define GMX_4XM_UNROLL_INNER @GMX_2XMM_UNROLL_INNER@
++
+ /* Integer byte order is big endian. */
+ #cmakedefine01 GMX_INTEGER_BIG_ENDIAN
+ 
+diff --git a/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner.h.in b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner.h.in
+new file mode 100644
+index 0000000000..cabff515ef
+--- /dev/null
++++ b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner.h.in
+@@ -0,0 +1,435 @@
++/*
++ * This file is part of the GROMACS molecular simulation package.
++ *
++ * Copyright 2012- The GROMACS Authors
++ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
++ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
++ *
++ * GROMACS is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 2.1
++ * of the License, or (at your option) any later version.
++ *
++ * GROMACS is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with GROMACS; if not, see
++ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
++ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
++ *
++ * If you want to redistribute modifications to GROMACS, please
++ * consider that scientific software is very special. Version
++ * control is crucial - bugs must be traceable. We will be happy to
++ * consider code for inclusion in the official distribution, but
++ * derived work must not be called official GROMACS. Details are found
++ * in the README & COPYING files - if they are missing, get the
++ * official version at https://www.gromacs.org.
++ *
++ * To help us fund GROMACS development, we humbly ask that you cite
++ * the research papers on the package. Check out https://www.gromacs.org.
++ */
++
++/* Doxygen gets confused (buggy) about the block in this file in combination with
++ * the  namespace prefix, and thinks store is documented here.
++ * This will solve itself with the second-generation nbnxn kernels, so for now
++ * we just tell Doxygen to stay out.
++ */
++#ifndef DOXYGEN
++
++/* This is the innermost loop contents for the 4 x N atom simd kernel.
++ * This flavor of the kernel calculates interactions of 4 i-atoms
++ * with N j-atoms stored in N wide simd registers.
++ */
++
++{
++    /* Inner loop specific constexpr variables */
++    static_assert(nR % 2 == 0);
++    constexpr int c_nRLJ = (c_iLJInteractions == ILJInteractions::None
++                                    ? 0
++                                    : nR / (c_iLJInteractions == ILJInteractions::Half ? 2 : 1));
++    /* When calculating RF or Ewald interactions we calculate the electrostatic/LJ
++     * forces on excluded atom pairs here in the non-bonded loops.
++     * But when energies and/or virial is required we calculate them
++     * separately to as then it is easier to separate the energy and virial
++     * contributions.
++     */
++    constexpr bool c_haveExclusionForces =
++            (c_calculateCoulombInteractions || haveLJEwaldGeometric) && c_needToCheckExclusions;
++
++    /* The force times 1/r */
++    std::array<SimdReal, nR> SP@fScalarV;
++
++    /* j-cluster index */
++    const int SP@cj = l_cj[cjind+@].cj;
++
++    /* Atom indices (of the first atom in the cluster) */
++    const int gmx_unused SP@aj = SP@cj * UNROLLJ;
++#    if UNROLLJ == STRIDE
++    const int SP@ajx = SP@aj * DIM;
++#    else
++    const int SP@ajx = (SP@cj >> 1) * DIM * STRIDE + (SP@cj & 1) * UNROLLJ;
++#    endif
++    const int SP@ajy = SP@ajx + STRIDE;
++    const int SP@ajz = SP@ajy + STRIDE;
++
++    /* Interaction (non-exclusion) mask of all 1's or 0's */
++    const auto SP@interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+@].excl), exclusionFilterV);
++
++    /* load j atom coordinates */
++    SimdReal SP@jx_S = loadJAtomData<kernelLayout>(x, SP@ajx);
++    SimdReal SP@jy_S = loadJAtomData<kernelLayout>(x, SP@ajy);
++    SimdReal SP@jz_S = loadJAtomData<kernelLayout>(x, SP@ajz);
++
++    /* Calculate distance */
++    const auto SP@dxV = genArr<nR>([&](int i) { return ixV[i] - SP@jx_S; });
++    const auto SP@dyV = genArr<nR>([&](int i) { return iyV[i] - SP@jy_S; });
++    const auto SP@dzV = genArr<nR>([&](int i) { return izV[i] - SP@jz_S; });
++
++    /* rsq = dx*dx + dy*dy + dz*dz */
++    auto SP@rSquaredV = genArr<nR>([&](int i) { return norm2(SP@dxV[i], SP@dyV[i], SP@dzV[i]); });
++
++    /* Do the cut-off check */
++    auto SP@withinCutoffV = genBoolArr<nR>([&](int i) { return SP@rSquaredV[i] < cutoffSquared; });
++
++    assert (! c_needToCheckExclusions);
++
++#    ifdef COUNT_PAIRS
++    npair += pairCountWithinCutoff(SP@rSquaredV, cutoffSquared);
++#    endif
++
++    // Ensure the distances do not fall below the limit where r^-12 overflows.
++    // This should never happen for normal interactions.
++    SP@rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP@rSquaredV[i], minDistanceSquared); });
++
++    /* Calculate 1/r */
++    std::array<SimdReal, nR> SP@rInvV;
++#    if !GMX_DOUBLE
++    SP@rInvV = genArr<nR>([&](int i) { return invsqrt(SP@rSquaredV[i]); });
++#    else
++    for (int i = 0; i < nR; i += 2)
++    {
++        invsqrtPair(SP@rSquaredV[i], SP@rSquaredV[i + 1], &SP@rInvV[i], &SP@rInvV[i + 1]);
++    }
++#    endif
++
++    std::array<SimdReal, nR> SP@qqV;
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Load parameters for j atom */
++        const SimdReal SP@jq_S = loadJAtomData<kernelLayout>(q, SP@aj);
++        SP@qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP@jq_S; });
++    }
++
++    /* Set rinv to zero for r beyond the cut-off */
++    SP@rInvV = genArr<nR>([&](int i) { return selectByMask(SP@rInvV[i], SP@withinCutoffV[i]); });
++
++    const auto SP@rInvSquaredV = genArr<nR>([&](int i) { return SP@rInvV[i] * SP@rInvV[i]; });
++
++    /* frcoul = qi*qj*(1/r - fsub)*r */
++    std::array<SimdReal, nR> SP@frCoulombV;
++    std::array<SimdReal, nR> SP@vCoulombV;
++
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Note that here we calculate force*r, not the usual force/r.
++         * This allows avoiding masking the reaction-field contribution,
++         * as frcoul is later multiplied by rinvsq which has been
++         * masked with the cut-off check.
++         */
++
++        /* Only add 1/r for non-excluded atom pairs */
++        std::array<SimdReal, nR> SP@rInvExclV;
++        if constexpr (c_haveExclusionForces)
++        {
++            SP@rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP@rInvV[i], SP@interactV[i]); });
++        }
++        else
++        {
++            /* We hope that the compiler optimizes rInvExclV away */
++            SP@rInvExclV = SP@rInvV;
++        }
++
++        /* Electrostatic interactions, frcoul =  qi*qj*(1/r - fsub)*r */
++        if constexpr (!calculateEnergies)
++        {
++            SP@frCoulombV = coulombCalculator.force<nR>(SP@rSquaredV, SP@rInvV, SP@rInvExclV, SP@withinCutoffV);
++
++            SP@frCoulombV = genArr<nR>([&](int i) { return SP@qqV[i] * SP@frCoulombV[i]; });
++        }
++        else
++        {
++            // The potential (RF or Ewald reciprocal) we need to subtract from 1/r
++            std::array<SimdReal, nR> SP@vCoulombCorrectionV;
++
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP@rSquaredV, SP@rInvV, SP@rInvExclV, SP@withinCutoffV, SP@frCoulombV, SP@vCoulombCorrectionV);
++
++            SP@frCoulombV = genArr<nR>([&](int i) { return SP@qqV[i] * SP@frCoulombV[i]; });
++
++            if constexpr (coulombType != KernelCoulombType::RF)
++            {
++                assert(! c_needToCheckExclusions);
++                {
++                    SP@vCoulombCorrectionV = genArr<nR>([&](int i) { return SP@vCoulombCorrectionV[i] + ewaldShift; });
++                }
++            }
++
++            /* Combine Coulomb and correction terms */
++            SP@vCoulombV = genArr<nR>( [&](int i) { return SP@qqV[i] * (SP@rInvExclV[i] - SP@vCoulombCorrectionV[i]); });
++
++            /* Mask energy for cut-off and diagonal */
++            SP@vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP@vCoulombV[i], SP@withinCutoffV[i]); });
++        }
++    }
++
++    /* Lennard-Jones interaction */
++    constexpr bool calculateLJInteractions = (c_iLJInteractions != ILJInteractions::None);
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP@frLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP@vLJV;
++
++    if constexpr (calculateLJInteractions)
++    {
++        std::array<SimdBool, c_nRLJ> SP@withinVdwCutoffV;
++        if constexpr (haveVdwCutoffCheck)
++        {
++            SP@withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP@rSquaredV[i] < vdwCutoffSquared; });
++        }
++
++        /* Index for loading LJ parameters, complicated when interleaving */
++        int SP@aj2;
++        if constexpr (ljCombinationRule != LJCombinationRule::None || haveLJEwaldGeometric)
++        {
++            if constexpr (GMX_SIMD_REAL_WIDTH == GMX_SIMD_J_UNROLL_SIZE * STRIDE)
++            {
++                SP@aj2 = SP@aj * 2;
++            }
++            else
++            {
++                SP@aj2 = (SP@cj >> 1) * 2 * STRIDE + (SP@cj & 1) * UNROLLJ;
++            }
++        }
++
++        if constexpr (ljCombinationRule != LJCombinationRule::LorentzBerthelot)
++        {
++            /* We use C6 and C12 */
++            std::array<SimdReal, c_nRLJ> SP@c6V;
++            std::array<SimdReal, c_nRLJ> SP@c12V;
++
++            if constexpr (ljCombinationRule == LJCombinationRule::None)
++            {
++                // Load 6*C6 and 6*C12 for all pairs
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP@aj, &SP@c6V[i], &SP@c12V[i]);
++                    }
++                    else
++                    {
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP@aj, &SP@c6V[i], &SP@c12V[i]);
++                    }
++                }
++            }
++
++            if constexpr (ljCombinationRule == LJCombinationRule::Geometric)
++            {
++                // Load j-atom sqrt(6*C6) and sqrt(12*C12)
++                SimdReal SP@c6J  = loadJAtomData<kernelLayout>(ljc, SP@aj2 + 0);
++                SimdReal SP@c12J = loadJAtomData<kernelLayout>(ljc, SP@aj2 + STRIDE);
++                // Compute the combined 6*C6 and 12*C12
++                SP@c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP@c6J; });
++                SP@c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP@c12J; });
++            }
++
++            // Compute the Lennard Jones force and optionally the energy
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP@rSquaredV, SP@rInvV, SP@rInvSquaredV, SP@interactV, SP@c6V, SP@c12V, sixth_S, twelveth_S, SP@frLJV, SP@vLJV);
++        }
++
++        if constexpr (ljCombinationRule == LJCombinationRule::LorentzBerthelot)
++        {
++            const SimdReal SP@halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP@aj2 + 0);
++            const SimdReal SP@sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP@aj2 + STRIDE);
++
++            const auto SP@sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP@halfSigmaJ; });
++            const auto SP@epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP@sqrtEpsilonJ; });
++
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP@rInvV, SP@interactV, SP@withinVdwCutoffV.data(), SP@sigmaV, SP@epsilonV, sixth_S, twelveth_S, SP@frLJV, SP@vLJV);
++        }
++
++        if constexpr (calculateEnergies && c_needToCheckExclusions)
++        {
++            /* The potential shift should be removed for excluded pairs */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP@vLJV[i] = selectByMask(SP@vLJV[i], SP@interactV[i]);
++            }
++        }
++
++        if constexpr (haveLJEwaldGeometric)
++        {
++            /* Determine C6 for the grid using the geometric combination rule */
++            const SimdReal SP@c6J     = loadJAtomData<kernelLayout>(ljc, SP@aj2 + 0);
++            const auto     SP@c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP@c6J; });
++
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP@rSquaredV, SP@rInvSquaredV, SP@interactV, SP@withinCutoffV.data(), SP@c6GridV, ljEwaldParams, sixth_S, SP@frLJV, SP@vLJV);
++        }
++
++        if constexpr (haveVdwCutoffCheck)
++        {
++            /* frLJ is multiplied later by rinvsq, which is masked for the Coulomb
++             * cut-off, but if the VdW cut-off is shorter, we need to mask with that.
++             */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP@frLJV[i] = selectByMask(SP@frLJV[i], SP@withinVdwCutoffV[i]);
++            }
++        }
++
++        if constexpr (calculateEnergies)
++        {
++            /* The potential shift should be removed for pairs beyond cut-off */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP@vLJV[i] = selectByMask(SP@vLJV[i], haveVdwCutoffCheck ? SP@withinVdwCutoffV[i] : SP@withinCutoffV[i]);
++            }
++        }
++
++    } // calculateLJInteractions
++
++    if constexpr (calculateEnergies)
++    {
++        /* Energy group indices for two atoms packed into one int */
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP@egp_jj;
++
++        if constexpr (useEnergyGroups)
++        {
++            /* Extract the group pair index per j pair.
++             * Energy groups are stored per i-cluster, so things get
++             * complicated when the i- and j-cluster size don't match.
++             */
++#    if UNROLLJ == 2
++            const int SP@egps_j = nbatParams.energrp[SP@cj >> 1];
++            SP@egp_jj[0]        = ((SP@egps_j >> ((SP@cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++#    else
++            static_assert(UNROLLI <= UNROLLJ);
++
++            for (int jdi = 0; jdi < UNROLLJ / UNROLLI; jdi++)
++            {
++                const int SP@egps_j = nbatParams.energrp[SP@cj * (UNROLLJ / UNROLLI) + jdi];
++                for (int jj = 0; jj < (UNROLLI / 2); jj++)
++                {
++                    SP@egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP@egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                }
++            }
++#    endif
++        }
++
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            // Accumulate the Coulomb energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    vctot_S = vctot_S + SP@vCoulombV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP@vCoulombV[i], vctp[i], SP@egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP@vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP@egp_jj);
++                    }
++                }
++            }
++        }
++
++        if constexpr (c_iLJInteractions != ILJInteractions::None)
++        {
++            // Accumulate the Lennard-Jones energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    Vvdwtot_S = Vvdwtot_S + SP@vLJV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP@vLJV[i], vvdwtp[i], SP@egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP@vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP@egp_jj);
++                    }
++                }
++            }
++        }
++
++    } // calculateEnergies
++
++    if constexpr (c_iLJInteractions != ILJInteractions::None)
++    {
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP@fScalarV[i] = SP@rInvSquaredV[i] * (SP@frCoulombV[i] + SP@frLJV[i]);
++            }
++            for (int i = c_nRLJ; i < nR; i++)
++            {
++                SP@fScalarV[i] = SP@rInvSquaredV[i] * SP@frCoulombV[i];
++            }
++        }
++        else
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP@fScalarV[i] = SP@rInvSquaredV[i] * SP@frLJV[i];
++            }
++        }
++    }
++    else
++    {
++        for (int i = c_nRLJ; i < nR; i++)
++        {
++            SP@fScalarV[i] = SP@rInvSquaredV[i] * SP@frCoulombV[i];
++        }
++    }
++
++    /* Calculate temporary vectorial force */
++    const auto SP@txV = genArr<nR>([&](int i) { return SP@fScalarV[i] * SP@dxV[i]; });
++    const auto SP@tyV = genArr<nR>([&](int i) { return SP@fScalarV[i] * SP@dyV[i]; });
++    const auto SP@tzV = genArr<nR>([&](int i) { return SP@fScalarV[i] * SP@dzV[i]; });
++
++    /* Increment i atom force */
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP@txV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP@tyV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP@tzV[i]; });
++
++    /* Decrement j atom force */
++    if constexpr (kernelLayout == KernelLayout::r4xM)
++    {
++        store(f + SP@ajx, load<SimdReal>(f + SP@ajx) - (SP@txV[0] + SP@txV[1] + SP@txV[2] + SP@txV[3]));
++        store(f + SP@ajy, load<SimdReal>(f + SP@ajy) - (SP@tyV[0] + SP@tyV[1] + SP@tyV[2] + SP@tyV[3]));
++        store(f + SP@ajz, load<SimdReal>(f + SP@ajz) - (SP@tzV[0] + SP@tzV[1] + SP@tzV[2] + SP@tzV[3]));
++    }
++    else
++    {
++        decr3Hsimd(f + SP@aj * DIM, SP@txV[0] + SP@txV[1], SP@tyV[0] + SP@tyV[1], SP@tzV[0] + SP@tzV[1]);
++    }
++}
++
++#endif // !DOXYGEN
+diff --git a/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_0.h b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_0.h
+new file mode 100644
+index 0000000000..2501aa249c
+--- /dev/null
++++ b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_0.h
+@@ -0,0 +1,435 @@
++/*
++ * This file is part of the GROMACS molecular simulation package.
++ *
++ * Copyright 2012- The GROMACS Authors
++ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
++ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
++ *
++ * GROMACS is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 2.1
++ * of the License, or (at your option) any later version.
++ *
++ * GROMACS is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with GROMACS; if not, see
++ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
++ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
++ *
++ * If you want to redistribute modifications to GROMACS, please
++ * consider that scientific software is very special. Version
++ * control is crucial - bugs must be traceable. We will be happy to
++ * consider code for inclusion in the official distribution, but
++ * derived work must not be called official GROMACS. Details are found
++ * in the README & COPYING files - if they are missing, get the
++ * official version at https://www.gromacs.org.
++ *
++ * To help us fund GROMACS development, we humbly ask that you cite
++ * the research papers on the package. Check out https://www.gromacs.org.
++ */
++
++/* Doxygen gets confused (buggy) about the block in this file in combination with
++ * the  namespace prefix, and thinks store is documented here.
++ * This will solve itself with the second-generation nbnxn kernels, so for now
++ * we just tell Doxygen to stay out.
++ */
++#ifndef DOXYGEN
++
++/* This is the innermost loop contents for the 4 x N atom simd kernel.
++ * This flavor of the kernel calculates interactions of 4 i-atoms
++ * with N j-atoms stored in N wide simd registers.
++ */
++
++{
++    /* Inner loop specific constexpr variables */
++    static_assert(nR % 2 == 0);
++    constexpr int c_nRLJ = (c_iLJInteractions == ILJInteractions::None
++                                    ? 0
++                                    : nR / (c_iLJInteractions == ILJInteractions::Half ? 2 : 1));
++    /* When calculating RF or Ewald interactions we calculate the electrostatic/LJ
++     * forces on excluded atom pairs here in the non-bonded loops.
++     * But when energies and/or virial is required we calculate them
++     * separately to as then it is easier to separate the energy and virial
++     * contributions.
++     */
++    constexpr bool c_haveExclusionForces =
++            (c_calculateCoulombInteractions || haveLJEwaldGeometric) && c_needToCheckExclusions;
++
++    /* The force times 1/r */
++    std::array<SimdReal, nR> SP0fScalarV;
++
++    /* j-cluster index */
++    const int SP0cj = l_cj[cjind+0].cj;
++
++    /* Atom indices (of the first atom in the cluster) */
++    const int gmx_unused SP0aj = SP0cj * UNROLLJ;
++#    if UNROLLJ == STRIDE
++    const int SP0ajx = SP0aj * DIM;
++#    else
++    const int SP0ajx = (SP0cj >> 1) * DIM * STRIDE + (SP0cj & 1) * UNROLLJ;
++#    endif
++    const int SP0ajy = SP0ajx + STRIDE;
++    const int SP0ajz = SP0ajy + STRIDE;
++
++    /* Interaction (non-exclusion) mask of all 1's or 0's */
++    const auto SP0interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+0].excl), exclusionFilterV);
++
++    /* load j atom coordinates */
++    SimdReal SP0jx_S = loadJAtomData<kernelLayout>(x, SP0ajx);
++    SimdReal SP0jy_S = loadJAtomData<kernelLayout>(x, SP0ajy);
++    SimdReal SP0jz_S = loadJAtomData<kernelLayout>(x, SP0ajz);
++
++    /* Calculate distance */
++    const auto SP0dxV = genArr<nR>([&](int i) { return ixV[i] - SP0jx_S; });
++    const auto SP0dyV = genArr<nR>([&](int i) { return iyV[i] - SP0jy_S; });
++    const auto SP0dzV = genArr<nR>([&](int i) { return izV[i] - SP0jz_S; });
++
++    /* rsq = dx*dx + dy*dy + dz*dz */
++    auto SP0rSquaredV = genArr<nR>([&](int i) { return norm2(SP0dxV[i], SP0dyV[i], SP0dzV[i]); });
++
++    /* Do the cut-off check */
++    auto SP0withinCutoffV = genBoolArr<nR>([&](int i) { return SP0rSquaredV[i] < cutoffSquared; });
++
++    assert (! c_needToCheckExclusions);
++
++#    ifdef COUNT_PAIRS
++    npair += pairCountWithinCutoff(SP0rSquaredV, cutoffSquared);
++#    endif
++
++    // Ensure the distances do not fall below the limit where r^-12 overflows.
++    // This should never happen for normal interactions.
++    SP0rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP0rSquaredV[i], minDistanceSquared); });
++
++    /* Calculate 1/r */
++    std::array<SimdReal, nR> SP0rInvV;
++#    if !GMX_DOUBLE
++    SP0rInvV = genArr<nR>([&](int i) { return invsqrt(SP0rSquaredV[i]); });
++#    else
++    for (int i = 0; i < nR; i += 2)
++    {
++        invsqrtPair(SP0rSquaredV[i], SP0rSquaredV[i + 1], &SP0rInvV[i], &SP0rInvV[i + 1]);
++    }
++#    endif
++
++    std::array<SimdReal, nR> SP0qqV;
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Load parameters for j atom */
++        const SimdReal SP0jq_S = loadJAtomData<kernelLayout>(q, SP0aj);
++        SP0qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP0jq_S; });
++    }
++
++    /* Set rinv to zero for r beyond the cut-off */
++    SP0rInvV = genArr<nR>([&](int i) { return selectByMask(SP0rInvV[i], SP0withinCutoffV[i]); });
++
++    const auto SP0rInvSquaredV = genArr<nR>([&](int i) { return SP0rInvV[i] * SP0rInvV[i]; });
++
++    /* frcoul = qi*qj*(1/r - fsub)*r */
++    std::array<SimdReal, nR> SP0frCoulombV;
++    std::array<SimdReal, nR> SP0vCoulombV;
++
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Note that here we calculate force*r, not the usual force/r.
++         * This allows avoiding masking the reaction-field contribution,
++         * as frcoul is later multiplied by rinvsq which has been
++         * masked with the cut-off check.
++         */
++
++        /* Only add 1/r for non-excluded atom pairs */
++        std::array<SimdReal, nR> SP0rInvExclV;
++        if constexpr (c_haveExclusionForces)
++        {
++            SP0rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP0rInvV[i], SP0interactV[i]); });
++        }
++        else
++        {
++            /* We hope that the compiler optimizes rInvExclV away */
++            SP0rInvExclV = SP0rInvV;
++        }
++
++        /* Electrostatic interactions, frcoul =  qi*qj*(1/r - fsub)*r */
++        if constexpr (!calculateEnergies)
++        {
++            SP0frCoulombV = coulombCalculator.force<nR>(SP0rSquaredV, SP0rInvV, SP0rInvExclV, SP0withinCutoffV);
++
++            SP0frCoulombV = genArr<nR>([&](int i) { return SP0qqV[i] * SP0frCoulombV[i]; });
++        }
++        else
++        {
++            // The potential (RF or Ewald reciprocal) we need to subtract from 1/r
++            std::array<SimdReal, nR> SP0vCoulombCorrectionV;
++
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP0rSquaredV, SP0rInvV, SP0rInvExclV, SP0withinCutoffV, SP0frCoulombV, SP0vCoulombCorrectionV);
++
++            SP0frCoulombV = genArr<nR>([&](int i) { return SP0qqV[i] * SP0frCoulombV[i]; });
++
++            if constexpr (coulombType != KernelCoulombType::RF)
++            {
++                assert(! c_needToCheckExclusions);
++                {
++                    SP0vCoulombCorrectionV = genArr<nR>([&](int i) { return SP0vCoulombCorrectionV[i] + ewaldShift; });
++                }
++            }
++
++            /* Combine Coulomb and correction terms */
++            SP0vCoulombV = genArr<nR>( [&](int i) { return SP0qqV[i] * (SP0rInvExclV[i] - SP0vCoulombCorrectionV[i]); });
++
++            /* Mask energy for cut-off and diagonal */
++            SP0vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP0vCoulombV[i], SP0withinCutoffV[i]); });
++        }
++    }
++
++    /* Lennard-Jones interaction */
++    constexpr bool calculateLJInteractions = (c_iLJInteractions != ILJInteractions::None);
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP0frLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP0vLJV;
++
++    if constexpr (calculateLJInteractions)
++    {
++        std::array<SimdBool, c_nRLJ> SP0withinVdwCutoffV;
++        if constexpr (haveVdwCutoffCheck)
++        {
++            SP0withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP0rSquaredV[i] < vdwCutoffSquared; });
++        }
++
++        /* Index for loading LJ parameters, complicated when interleaving */
++        int SP0aj2;
++        if constexpr (ljCombinationRule != LJCombinationRule::None || haveLJEwaldGeometric)
++        {
++            if constexpr (GMX_SIMD_REAL_WIDTH == GMX_SIMD_J_UNROLL_SIZE * STRIDE)
++            {
++                SP0aj2 = SP0aj * 2;
++            }
++            else
++            {
++                SP0aj2 = (SP0cj >> 1) * 2 * STRIDE + (SP0cj & 1) * UNROLLJ;
++            }
++        }
++
++        if constexpr (ljCombinationRule != LJCombinationRule::LorentzBerthelot)
++        {
++            /* We use C6 and C12 */
++            std::array<SimdReal, c_nRLJ> SP0c6V;
++            std::array<SimdReal, c_nRLJ> SP0c12V;
++
++            if constexpr (ljCombinationRule == LJCombinationRule::None)
++            {
++                // Load 6*C6 and 6*C12 for all pairs
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP0aj, &SP0c6V[i], &SP0c12V[i]);
++                    }
++                    else
++                    {
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP0aj, &SP0c6V[i], &SP0c12V[i]);
++                    }
++                }
++            }
++
++            if constexpr (ljCombinationRule == LJCombinationRule::Geometric)
++            {
++                // Load j-atom sqrt(6*C6) and sqrt(12*C12)
++                SimdReal SP0c6J  = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++                SimdReal SP0c12J = loadJAtomData<kernelLayout>(ljc, SP0aj2 + STRIDE);
++                // Compute the combined 6*C6 and 12*C12
++                SP0c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP0c6J; });
++                SP0c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP0c12J; });
++            }
++
++            // Compute the Lennard Jones force and optionally the energy
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP0rSquaredV, SP0rInvV, SP0rInvSquaredV, SP0interactV, SP0c6V, SP0c12V, sixth_S, twelveth_S, SP0frLJV, SP0vLJV);
++        }
++
++        if constexpr (ljCombinationRule == LJCombinationRule::LorentzBerthelot)
++        {
++            const SimdReal SP0halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++            const SimdReal SP0sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP0aj2 + STRIDE);
++
++            const auto SP0sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP0halfSigmaJ; });
++            const auto SP0epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP0sqrtEpsilonJ; });
++
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP0rInvV, SP0interactV, SP0withinVdwCutoffV.data(), SP0sigmaV, SP0epsilonV, sixth_S, twelveth_S, SP0frLJV, SP0vLJV);
++        }
++
++        if constexpr (calculateEnergies && c_needToCheckExclusions)
++        {
++            /* The potential shift should be removed for excluded pairs */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0vLJV[i] = selectByMask(SP0vLJV[i], SP0interactV[i]);
++            }
++        }
++
++        if constexpr (haveLJEwaldGeometric)
++        {
++            /* Determine C6 for the grid using the geometric combination rule */
++            const SimdReal SP0c6J     = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++            const auto     SP0c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP0c6J; });
++
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP0rSquaredV, SP0rInvSquaredV, SP0interactV, SP0withinCutoffV.data(), SP0c6GridV, ljEwaldParams, sixth_S, SP0frLJV, SP0vLJV);
++        }
++
++        if constexpr (haveVdwCutoffCheck)
++        {
++            /* frLJ is multiplied later by rinvsq, which is masked for the Coulomb
++             * cut-off, but if the VdW cut-off is shorter, we need to mask with that.
++             */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0frLJV[i] = selectByMask(SP0frLJV[i], SP0withinVdwCutoffV[i]);
++            }
++        }
++
++        if constexpr (calculateEnergies)
++        {
++            /* The potential shift should be removed for pairs beyond cut-off */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0vLJV[i] = selectByMask(SP0vLJV[i], haveVdwCutoffCheck ? SP0withinVdwCutoffV[i] : SP0withinCutoffV[i]);
++            }
++        }
++
++    } // calculateLJInteractions
++
++    if constexpr (calculateEnergies)
++    {
++        /* Energy group indices for two atoms packed into one int */
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP0egp_jj;
++
++        if constexpr (useEnergyGroups)
++        {
++            /* Extract the group pair index per j pair.
++             * Energy groups are stored per i-cluster, so things get
++             * complicated when the i- and j-cluster size don't match.
++             */
++#    if UNROLLJ == 2
++            const int SP0egps_j = nbatParams.energrp[SP0cj >> 1];
++            SP0egp_jj[0]        = ((SP0egps_j >> ((SP0cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++#    else
++            static_assert(UNROLLI <= UNROLLJ);
++
++            for (int jdi = 0; jdi < UNROLLJ / UNROLLI; jdi++)
++            {
++                const int SP0egps_j = nbatParams.energrp[SP0cj * (UNROLLJ / UNROLLI) + jdi];
++                for (int jj = 0; jj < (UNROLLI / 2); jj++)
++                {
++                    SP0egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP0egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                }
++            }
++#    endif
++        }
++
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            // Accumulate the Coulomb energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    vctot_S = vctot_S + SP0vCoulombV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP0vCoulombV[i], vctp[i], SP0egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP0vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP0egp_jj);
++                    }
++                }
++            }
++        }
++
++        if constexpr (c_iLJInteractions != ILJInteractions::None)
++        {
++            // Accumulate the Lennard-Jones energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    Vvdwtot_S = Vvdwtot_S + SP0vLJV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP0vLJV[i], vvdwtp[i], SP0egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP0vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP0egp_jj);
++                    }
++                }
++            }
++        }
++
++    } // calculateEnergies
++
++    if constexpr (c_iLJInteractions != ILJInteractions::None)
++    {
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * (SP0frCoulombV[i] + SP0frLJV[i]);
++            }
++            for (int i = c_nRLJ; i < nR; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frCoulombV[i];
++            }
++        }
++        else
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frLJV[i];
++            }
++        }
++    }
++    else
++    {
++        for (int i = c_nRLJ; i < nR; i++)
++        {
++            SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frCoulombV[i];
++        }
++    }
++
++    /* Calculate temporary vectorial force */
++    const auto SP0txV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dxV[i]; });
++    const auto SP0tyV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dyV[i]; });
++    const auto SP0tzV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dzV[i]; });
++
++    /* Increment i atom force */
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP0txV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP0tyV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP0tzV[i]; });
++
++    /* Decrement j atom force */
++    if constexpr (kernelLayout == KernelLayout::r4xM)
++    {
++        store(f + SP0ajx, load<SimdReal>(f + SP0ajx) - (SP0txV[0] + SP0txV[1] + SP0txV[2] + SP0txV[3]));
++        store(f + SP0ajy, load<SimdReal>(f + SP0ajy) - (SP0tyV[0] + SP0tyV[1] + SP0tyV[2] + SP0tyV[3]));
++        store(f + SP0ajz, load<SimdReal>(f + SP0ajz) - (SP0tzV[0] + SP0tzV[1] + SP0tzV[2] + SP0tzV[3]));
++    }
++    else
++    {
++        decr3Hsimd(f + SP0aj * DIM, SP0txV[0] + SP0txV[1], SP0tyV[0] + SP0tyV[1], SP0tzV[0] + SP0tzV[1]);
++    }
++}
++
++#endif // !DOXYGEN
+diff --git a/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_1.h b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_1.h
+new file mode 100644
+index 0000000000..03590a26a6
+--- /dev/null
++++ b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_1.h
+@@ -0,0 +1,526 @@
++/*
++ * This file is part of the GROMACS molecular simulation package.
++ *
++ * Copyright 2012- The GROMACS Authors
++ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
++ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
++ *
++ * GROMACS is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 2.1
++ * of the License, or (at your option) any later version.
++ *
++ * GROMACS is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with GROMACS; if not, see
++ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
++ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
++ *
++ * If you want to redistribute modifications to GROMACS, please
++ * consider that scientific software is very special. Version
++ * control is crucial - bugs must be traceable. We will be happy to
++ * consider code for inclusion in the official distribution, but
++ * derived work must not be called official GROMACS. Details are found
++ * in the README & COPYING files - if they are missing, get the
++ * official version at https://www.gromacs.org.
++ *
++ * To help us fund GROMACS development, we humbly ask that you cite
++ * the research papers on the package. Check out https://www.gromacs.org.
++ */
++
++/* Doxygen gets confused (buggy) about the block in this file in combination with
++ * the  namespace prefix, and thinks store is documented here.
++ * This will solve itself with the second-generation nbnxn kernels, so for now
++ * we just tell Doxygen to stay out.
++ */
++#ifndef DOXYGEN
++
++/* This is the innermost loop contents for the 4 x N atom simd kernel.
++ * This flavor of the kernel calculates interactions of 4 i-atoms
++ * with N j-atoms stored in N wide simd registers.
++ */
++
++{
++    /* Inner loop specific constexpr variables */
++    static_assert(nR % 2 == 0);
++    constexpr int c_nRLJ = (c_iLJInteractions == ILJInteractions::None
++                                    ? 0
++                                    : nR / (c_iLJInteractions == ILJInteractions::Half ? 2 : 1));
++    /* When calculating RF or Ewald interactions we calculate the electrostatic/LJ
++     * forces on excluded atom pairs here in the non-bonded loops.
++     * But when energies and/or virial is required we calculate them
++     * separately to as then it is easier to separate the energy and virial
++     * contributions.
++     */
++    constexpr bool c_haveExclusionForces =
++            (c_calculateCoulombInteractions || haveLJEwaldGeometric) && c_needToCheckExclusions;
++
++    /* The force times 1/r */
++    std::array<SimdReal, nR> SP0fScalarV;
++    std::array<SimdReal, nR> SP1fScalarV;
++
++    /* j-cluster index */
++    const int SP0cj = l_cj[cjind+0].cj;
++    const int SP1cj = l_cj[cjind+1].cj;
++
++    /* Atom indices (of the first atom in the cluster) */
++    const int gmx_unused SP0aj = SP0cj * UNROLLJ;
++    const int gmx_unused SP1aj = SP1cj * UNROLLJ;
++#    if UNROLLJ == STRIDE
++    const int SP0ajx = SP0aj * DIM;
++    const int SP1ajx = SP1aj * DIM;
++#    else
++    const int SP0ajx = (SP0cj >> 1) * DIM * STRIDE + (SP0cj & 1) * UNROLLJ;
++    const int SP1ajx = (SP1cj >> 1) * DIM * STRIDE + (SP1cj & 1) * UNROLLJ;
++#    endif
++    const int SP0ajy = SP0ajx + STRIDE;
++    const int SP1ajy = SP1ajx + STRIDE;
++    const int SP0ajz = SP0ajy + STRIDE;
++    const int SP1ajz = SP1ajy + STRIDE;
++
++    /* Interaction (non-exclusion) mask of all 1's or 0's */
++    const auto SP0interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+0].excl), exclusionFilterV);
++    const auto SP1interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+1].excl), exclusionFilterV);
++
++    /* load j atom coordinates */
++    SimdReal SP0jx_S = loadJAtomData<kernelLayout>(x, SP0ajx);
++    SimdReal SP1jx_S = loadJAtomData<kernelLayout>(x, SP1ajx);
++    SimdReal SP0jy_S = loadJAtomData<kernelLayout>(x, SP0ajy);
++    SimdReal SP1jy_S = loadJAtomData<kernelLayout>(x, SP1ajy);
++    SimdReal SP0jz_S = loadJAtomData<kernelLayout>(x, SP0ajz);
++    SimdReal SP1jz_S = loadJAtomData<kernelLayout>(x, SP1ajz);
++
++    /* Calculate distance */
++    const auto SP0dxV = genArr<nR>([&](int i) { return ixV[i] - SP0jx_S; });
++    const auto SP1dxV = genArr<nR>([&](int i) { return ixV[i] - SP1jx_S; });
++    const auto SP0dyV = genArr<nR>([&](int i) { return iyV[i] - SP0jy_S; });
++    const auto SP1dyV = genArr<nR>([&](int i) { return iyV[i] - SP1jy_S; });
++    const auto SP0dzV = genArr<nR>([&](int i) { return izV[i] - SP0jz_S; });
++    const auto SP1dzV = genArr<nR>([&](int i) { return izV[i] - SP1jz_S; });
++
++    /* rsq = dx*dx + dy*dy + dz*dz */
++    auto SP0rSquaredV = genArr<nR>([&](int i) { return norm2(SP0dxV[i], SP0dyV[i], SP0dzV[i]); });
++    auto SP1rSquaredV = genArr<nR>([&](int i) { return norm2(SP1dxV[i], SP1dyV[i], SP1dzV[i]); });
++
++    /* Do the cut-off check */
++    auto SP0withinCutoffV = genBoolArr<nR>([&](int i) { return SP0rSquaredV[i] < cutoffSquared; });
++    auto SP1withinCutoffV = genBoolArr<nR>([&](int i) { return SP1rSquaredV[i] < cutoffSquared; });
++
++    assert (! c_needToCheckExclusions);
++
++#    ifdef COUNT_PAIRS
++    npair += pairCountWithinCutoff(SP0rSquaredV, cutoffSquared);
++    npair += pairCountWithinCutoff(SP1rSquaredV, cutoffSquared);
++#    endif
++
++    // Ensure the distances do not fall below the limit where r^-12 overflows.
++    // This should never happen for normal interactions.
++    SP0rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP0rSquaredV[i], minDistanceSquared); });
++    SP1rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP1rSquaredV[i], minDistanceSquared); });
++
++    /* Calculate 1/r */
++    std::array<SimdReal, nR> SP0rInvV;
++    std::array<SimdReal, nR> SP1rInvV;
++#    if !GMX_DOUBLE
++    SP0rInvV = genArr<nR>([&](int i) { return invsqrt(SP0rSquaredV[i]); });
++    SP1rInvV = genArr<nR>([&](int i) { return invsqrt(SP1rSquaredV[i]); });
++#    else
++    for (int i = 0; i < nR; i += 2)
++    {
++        invsqrtPair(SP0rSquaredV[i], SP0rSquaredV[i + 1], &SP0rInvV[i], &SP0rInvV[i + 1]);
++        invsqrtPair(SP1rSquaredV[i], SP1rSquaredV[i + 1], &SP1rInvV[i], &SP1rInvV[i + 1]);
++    }
++#    endif
++
++    std::array<SimdReal, nR> SP0qqV;
++    std::array<SimdReal, nR> SP1qqV;
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Load parameters for j atom */
++        const SimdReal SP0jq_S = loadJAtomData<kernelLayout>(q, SP0aj);
++        const SimdReal SP1jq_S = loadJAtomData<kernelLayout>(q, SP1aj);
++        SP0qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP0jq_S; });
++        SP1qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP1jq_S; });
++    }
++
++    /* Set rinv to zero for r beyond the cut-off */
++    SP0rInvV = genArr<nR>([&](int i) { return selectByMask(SP0rInvV[i], SP0withinCutoffV[i]); });
++    SP1rInvV = genArr<nR>([&](int i) { return selectByMask(SP1rInvV[i], SP1withinCutoffV[i]); });
++
++    const auto SP0rInvSquaredV = genArr<nR>([&](int i) { return SP0rInvV[i] * SP0rInvV[i]; });
++    const auto SP1rInvSquaredV = genArr<nR>([&](int i) { return SP1rInvV[i] * SP1rInvV[i]; });
++
++    /* frcoul = qi*qj*(1/r - fsub)*r */
++    std::array<SimdReal, nR> SP0frCoulombV;
++    std::array<SimdReal, nR> SP1frCoulombV;
++    std::array<SimdReal, nR> SP0vCoulombV;
++    std::array<SimdReal, nR> SP1vCoulombV;
++
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Note that here we calculate force*r, not the usual force/r.
++         * This allows avoiding masking the reaction-field contribution,
++         * as frcoul is later multiplied by rinvsq which has been
++         * masked with the cut-off check.
++         */
++
++        /* Only add 1/r for non-excluded atom pairs */
++        std::array<SimdReal, nR> SP0rInvExclV;
++        std::array<SimdReal, nR> SP1rInvExclV;
++        if constexpr (c_haveExclusionForces)
++        {
++            SP0rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP0rInvV[i], SP0interactV[i]); });
++            SP1rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP1rInvV[i], SP1interactV[i]); });
++        }
++        else
++        {
++            /* We hope that the compiler optimizes rInvExclV away */
++            SP0rInvExclV = SP0rInvV;
++            SP1rInvExclV = SP1rInvV;
++        }
++
++        /* Electrostatic interactions, frcoul =  qi*qj*(1/r - fsub)*r */
++        if constexpr (!calculateEnergies)
++        {
++            SP0frCoulombV = coulombCalculator.force<nR>(SP0rSquaredV, SP0rInvV, SP0rInvExclV, SP0withinCutoffV);
++            SP1frCoulombV = coulombCalculator.force<nR>(SP1rSquaredV, SP1rInvV, SP1rInvExclV, SP1withinCutoffV);
++
++            SP0frCoulombV = genArr<nR>([&](int i) { return SP0qqV[i] * SP0frCoulombV[i]; });
++            SP1frCoulombV = genArr<nR>([&](int i) { return SP1qqV[i] * SP1frCoulombV[i]; });
++        }
++        else
++        {
++            // The potential (RF or Ewald reciprocal) we need to subtract from 1/r
++            std::array<SimdReal, nR> SP0vCoulombCorrectionV;
++            std::array<SimdReal, nR> SP1vCoulombCorrectionV;
++
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP0rSquaredV, SP0rInvV, SP0rInvExclV, SP0withinCutoffV, SP0frCoulombV, SP0vCoulombCorrectionV);
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP1rSquaredV, SP1rInvV, SP1rInvExclV, SP1withinCutoffV, SP1frCoulombV, SP1vCoulombCorrectionV);
++
++            SP0frCoulombV = genArr<nR>([&](int i) { return SP0qqV[i] * SP0frCoulombV[i]; });
++            SP1frCoulombV = genArr<nR>([&](int i) { return SP1qqV[i] * SP1frCoulombV[i]; });
++
++            if constexpr (coulombType != KernelCoulombType::RF)
++            {
++                assert(! c_needToCheckExclusions);
++                {
++                    SP0vCoulombCorrectionV = genArr<nR>([&](int i) { return SP0vCoulombCorrectionV[i] + ewaldShift; });
++                    SP1vCoulombCorrectionV = genArr<nR>([&](int i) { return SP1vCoulombCorrectionV[i] + ewaldShift; });
++                }
++            }
++
++            /* Combine Coulomb and correction terms */
++            SP0vCoulombV = genArr<nR>( [&](int i) { return SP0qqV[i] * (SP0rInvExclV[i] - SP0vCoulombCorrectionV[i]); });
++            SP1vCoulombV = genArr<nR>( [&](int i) { return SP1qqV[i] * (SP1rInvExclV[i] - SP1vCoulombCorrectionV[i]); });
++
++            /* Mask energy for cut-off and diagonal */
++            SP0vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP0vCoulombV[i], SP0withinCutoffV[i]); });
++            SP1vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP1vCoulombV[i], SP1withinCutoffV[i]); });
++        }
++    }
++
++    /* Lennard-Jones interaction */
++    constexpr bool calculateLJInteractions = (c_iLJInteractions != ILJInteractions::None);
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP0frLJV;
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP1frLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP0vLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP1vLJV;
++
++    if constexpr (calculateLJInteractions)
++    {
++        std::array<SimdBool, c_nRLJ> SP0withinVdwCutoffV;
++        std::array<SimdBool, c_nRLJ> SP1withinVdwCutoffV;
++        if constexpr (haveVdwCutoffCheck)
++        {
++            SP0withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP0rSquaredV[i] < vdwCutoffSquared; });
++            SP1withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP1rSquaredV[i] < vdwCutoffSquared; });
++        }
++
++        /* Index for loading LJ parameters, complicated when interleaving */
++        int SP0aj2;
++        int SP1aj2;
++        if constexpr (ljCombinationRule != LJCombinationRule::None || haveLJEwaldGeometric)
++        {
++            if constexpr (GMX_SIMD_REAL_WIDTH == GMX_SIMD_J_UNROLL_SIZE * STRIDE)
++            {
++                SP0aj2 = SP0aj * 2;
++                SP1aj2 = SP1aj * 2;
++            }
++            else
++            {
++                SP0aj2 = (SP0cj >> 1) * 2 * STRIDE + (SP0cj & 1) * UNROLLJ;
++                SP1aj2 = (SP1cj >> 1) * 2 * STRIDE + (SP1cj & 1) * UNROLLJ;
++            }
++        }
++
++        if constexpr (ljCombinationRule != LJCombinationRule::LorentzBerthelot)
++        {
++            /* We use C6 and C12 */
++            std::array<SimdReal, c_nRLJ> SP0c6V;
++            std::array<SimdReal, c_nRLJ> SP1c6V;
++            std::array<SimdReal, c_nRLJ> SP0c12V;
++            std::array<SimdReal, c_nRLJ> SP1c12V;
++
++            if constexpr (ljCombinationRule == LJCombinationRule::None)
++            {
++                // Load 6*C6 and 6*C12 for all pairs
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP0aj, &SP0c6V[i], &SP0c12V[i]);
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP1aj, &SP1c6V[i], &SP1c12V[i]);
++                    }
++                    else
++                    {
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP0aj, &SP0c6V[i], &SP0c12V[i]);
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP1aj, &SP1c6V[i], &SP1c12V[i]);
++                    }
++                }
++            }
++
++            if constexpr (ljCombinationRule == LJCombinationRule::Geometric)
++            {
++                // Load j-atom sqrt(6*C6) and sqrt(12*C12)
++                SimdReal SP0c6J  = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++                SimdReal SP1c6J  = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++                SimdReal SP0c12J = loadJAtomData<kernelLayout>(ljc, SP0aj2 + STRIDE);
++                SimdReal SP1c12J = loadJAtomData<kernelLayout>(ljc, SP1aj2 + STRIDE);
++                // Compute the combined 6*C6 and 12*C12
++                SP0c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP0c6J; });
++                SP1c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP1c6J; });
++                SP0c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP0c12J; });
++                SP1c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP1c12J; });
++            }
++
++            // Compute the Lennard Jones force and optionally the energy
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP0rSquaredV, SP0rInvV, SP0rInvSquaredV, SP0interactV, SP0c6V, SP0c12V, sixth_S, twelveth_S, SP0frLJV, SP0vLJV);
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP1rSquaredV, SP1rInvV, SP1rInvSquaredV, SP1interactV, SP1c6V, SP1c12V, sixth_S, twelveth_S, SP1frLJV, SP1vLJV);
++        }
++
++        if constexpr (ljCombinationRule == LJCombinationRule::LorentzBerthelot)
++        {
++            const SimdReal SP0halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++            const SimdReal SP1halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++            const SimdReal SP0sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP0aj2 + STRIDE);
++            const SimdReal SP1sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP1aj2 + STRIDE);
++
++            const auto SP0sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP0halfSigmaJ; });
++            const auto SP1sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP1halfSigmaJ; });
++            const auto SP0epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP0sqrtEpsilonJ; });
++            const auto SP1epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP1sqrtEpsilonJ; });
++
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP0rInvV, SP0interactV, SP0withinVdwCutoffV.data(), SP0sigmaV, SP0epsilonV, sixth_S, twelveth_S, SP0frLJV, SP0vLJV);
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP1rInvV, SP1interactV, SP1withinVdwCutoffV.data(), SP1sigmaV, SP1epsilonV, sixth_S, twelveth_S, SP1frLJV, SP1vLJV);
++        }
++
++        if constexpr (calculateEnergies && c_needToCheckExclusions)
++        {
++            /* The potential shift should be removed for excluded pairs */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0vLJV[i] = selectByMask(SP0vLJV[i], SP0interactV[i]);
++                SP1vLJV[i] = selectByMask(SP1vLJV[i], SP1interactV[i]);
++            }
++        }
++
++        if constexpr (haveLJEwaldGeometric)
++        {
++            /* Determine C6 for the grid using the geometric combination rule */
++            const SimdReal SP0c6J     = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++            const SimdReal SP1c6J     = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++            const auto     SP0c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP0c6J; });
++            const auto     SP1c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP1c6J; });
++
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP0rSquaredV, SP0rInvSquaredV, SP0interactV, SP0withinCutoffV.data(), SP0c6GridV, ljEwaldParams, sixth_S, SP0frLJV, SP0vLJV);
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP1rSquaredV, SP1rInvSquaredV, SP1interactV, SP1withinCutoffV.data(), SP1c6GridV, ljEwaldParams, sixth_S, SP1frLJV, SP1vLJV);
++        }
++
++        if constexpr (haveVdwCutoffCheck)
++        {
++            /* frLJ is multiplied later by rinvsq, which is masked for the Coulomb
++             * cut-off, but if the VdW cut-off is shorter, we need to mask with that.
++             */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0frLJV[i] = selectByMask(SP0frLJV[i], SP0withinVdwCutoffV[i]);
++                SP1frLJV[i] = selectByMask(SP1frLJV[i], SP1withinVdwCutoffV[i]);
++            }
++        }
++
++        if constexpr (calculateEnergies)
++        {
++            /* The potential shift should be removed for pairs beyond cut-off */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0vLJV[i] = selectByMask(SP0vLJV[i], haveVdwCutoffCheck ? SP0withinVdwCutoffV[i] : SP0withinCutoffV[i]);
++                SP1vLJV[i] = selectByMask(SP1vLJV[i], haveVdwCutoffCheck ? SP1withinVdwCutoffV[i] : SP1withinCutoffV[i]);
++            }
++        }
++
++    } // calculateLJInteractions
++
++    if constexpr (calculateEnergies)
++    {
++        /* Energy group indices for two atoms packed into one int */
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP0egp_jj;
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP1egp_jj;
++
++        if constexpr (useEnergyGroups)
++        {
++            /* Extract the group pair index per j pair.
++             * Energy groups are stored per i-cluster, so things get
++             * complicated when the i- and j-cluster size don't match.
++             */
++#    if UNROLLJ == 2
++            const int SP0egps_j = nbatParams.energrp[SP0cj >> 1];
++            const int SP1egps_j = nbatParams.energrp[SP1cj >> 1];
++            SP0egp_jj[0]        = ((SP0egps_j >> ((SP0cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++            SP1egp_jj[0]        = ((SP1egps_j >> ((SP1cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++#    else
++            static_assert(UNROLLI <= UNROLLJ);
++
++            for (int jdi = 0; jdi < UNROLLJ / UNROLLI; jdi++)
++            {
++                const int SP0egps_j = nbatParams.energrp[SP0cj * (UNROLLJ / UNROLLI) + jdi];
++                const int SP1egps_j = nbatParams.energrp[SP1cj * (UNROLLJ / UNROLLI) + jdi];
++                for (int jj = 0; jj < (UNROLLI / 2); jj++)
++                {
++                    SP0egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP0egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                    SP1egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP1egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                }
++            }
++#    endif
++        }
++
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            // Accumulate the Coulomb energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    vctot_S = vctot_S + SP0vCoulombV[i];
++                    vctot_S = vctot_S + SP1vCoulombV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP0vCoulombV[i], vctp[i], SP0egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP1vCoulombV[i], vctp[i], SP1egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP0vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP0egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP1vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP1egp_jj);
++                    }
++                }
++            }
++        }
++
++        if constexpr (c_iLJInteractions != ILJInteractions::None)
++        {
++            // Accumulate the Lennard-Jones energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    Vvdwtot_S = Vvdwtot_S + SP0vLJV[i];
++                    Vvdwtot_S = Vvdwtot_S + SP1vLJV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP0vLJV[i], vvdwtp[i], SP0egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP1vLJV[i], vvdwtp[i], SP1egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP0vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP0egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP1vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP1egp_jj);
++                    }
++                }
++            }
++        }
++
++    } // calculateEnergies
++
++    if constexpr (c_iLJInteractions != ILJInteractions::None)
++    {
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * (SP0frCoulombV[i] + SP0frLJV[i]);
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * (SP1frCoulombV[i] + SP1frLJV[i]);
++            }
++            for (int i = c_nRLJ; i < nR; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frCoulombV[i];
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frCoulombV[i];
++            }
++        }
++        else
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frLJV[i];
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frLJV[i];
++            }
++        }
++    }
++    else
++    {
++        for (int i = c_nRLJ; i < nR; i++)
++        {
++            SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frCoulombV[i];
++            SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frCoulombV[i];
++        }
++    }
++
++    /* Calculate temporary vectorial force */
++    const auto SP0txV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dxV[i]; });
++    const auto SP1txV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dxV[i]; });
++    const auto SP0tyV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dyV[i]; });
++    const auto SP1tyV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dyV[i]; });
++    const auto SP0tzV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dzV[i]; });
++    const auto SP1tzV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dzV[i]; });
++
++    /* Increment i atom force */
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP0txV[i]; });
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP1txV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP0tyV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP1tyV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP0tzV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP1tzV[i]; });
++
++    /* Decrement j atom force */
++    if constexpr (kernelLayout == KernelLayout::r4xM)
++    {
++        store(f + SP0ajx, load<SimdReal>(f + SP0ajx) - (SP0txV[0] + SP0txV[1] + SP0txV[2] + SP0txV[3]));
++        store(f + SP1ajx, load<SimdReal>(f + SP1ajx) - (SP1txV[0] + SP1txV[1] + SP1txV[2] + SP1txV[3]));
++        store(f + SP0ajy, load<SimdReal>(f + SP0ajy) - (SP0tyV[0] + SP0tyV[1] + SP0tyV[2] + SP0tyV[3]));
++        store(f + SP1ajy, load<SimdReal>(f + SP1ajy) - (SP1tyV[0] + SP1tyV[1] + SP1tyV[2] + SP1tyV[3]));
++        store(f + SP0ajz, load<SimdReal>(f + SP0ajz) - (SP0tzV[0] + SP0tzV[1] + SP0tzV[2] + SP0tzV[3]));
++        store(f + SP1ajz, load<SimdReal>(f + SP1ajz) - (SP1tzV[0] + SP1tzV[1] + SP1tzV[2] + SP1tzV[3]));
++    }
++    else
++    {
++        decr3Hsimd(f + SP0aj * DIM, SP0txV[0] + SP0txV[1], SP0tyV[0] + SP0tyV[1], SP0tzV[0] + SP0tzV[1]);
++        decr3Hsimd(f + SP1aj * DIM, SP1txV[0] + SP1txV[1], SP1tyV[0] + SP1tyV[1], SP1tzV[0] + SP1tzV[1]);
++    }
++}
++
++#endif // !DOXYGEN
+diff --git a/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_2.h b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_2.h
+new file mode 100644
+index 0000000000..297343a4ef
+--- /dev/null
++++ b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_2.h
+@@ -0,0 +1,617 @@
++/*
++ * This file is part of the GROMACS molecular simulation package.
++ *
++ * Copyright 2012- The GROMACS Authors
++ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
++ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
++ *
++ * GROMACS is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 2.1
++ * of the License, or (at your option) any later version.
++ *
++ * GROMACS is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with GROMACS; if not, see
++ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
++ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
++ *
++ * If you want to redistribute modifications to GROMACS, please
++ * consider that scientific software is very special. Version
++ * control is crucial - bugs must be traceable. We will be happy to
++ * consider code for inclusion in the official distribution, but
++ * derived work must not be called official GROMACS. Details are found
++ * in the README & COPYING files - if they are missing, get the
++ * official version at https://www.gromacs.org.
++ *
++ * To help us fund GROMACS development, we humbly ask that you cite
++ * the research papers on the package. Check out https://www.gromacs.org.
++ */
++
++/* Doxygen gets confused (buggy) about the block in this file in combination with
++ * the  namespace prefix, and thinks store is documented here.
++ * This will solve itself with the second-generation nbnxn kernels, so for now
++ * we just tell Doxygen to stay out.
++ */
++#ifndef DOXYGEN
++
++/* This is the innermost loop contents for the 4 x N atom simd kernel.
++ * This flavor of the kernel calculates interactions of 4 i-atoms
++ * with N j-atoms stored in N wide simd registers.
++ */
++
++{
++    /* Inner loop specific constexpr variables */
++    static_assert(nR % 2 == 0);
++    constexpr int c_nRLJ = (c_iLJInteractions == ILJInteractions::None
++                                    ? 0
++                                    : nR / (c_iLJInteractions == ILJInteractions::Half ? 2 : 1));
++    /* When calculating RF or Ewald interactions we calculate the electrostatic/LJ
++     * forces on excluded atom pairs here in the non-bonded loops.
++     * But when energies and/or virial is required we calculate them
++     * separately to as then it is easier to separate the energy and virial
++     * contributions.
++     */
++    constexpr bool c_haveExclusionForces =
++            (c_calculateCoulombInteractions || haveLJEwaldGeometric) && c_needToCheckExclusions;
++
++    /* The force times 1/r */
++    std::array<SimdReal, nR> SP0fScalarV;
++    std::array<SimdReal, nR> SP1fScalarV;
++    std::array<SimdReal, nR> SP2fScalarV;
++
++    /* j-cluster index */
++    const int SP0cj = l_cj[cjind+0].cj;
++    const int SP1cj = l_cj[cjind+1].cj;
++    const int SP2cj = l_cj[cjind+2].cj;
++
++    /* Atom indices (of the first atom in the cluster) */
++    const int gmx_unused SP0aj = SP0cj * UNROLLJ;
++    const int gmx_unused SP1aj = SP1cj * UNROLLJ;
++    const int gmx_unused SP2aj = SP2cj * UNROLLJ;
++#    if UNROLLJ == STRIDE
++    const int SP0ajx = SP0aj * DIM;
++    const int SP1ajx = SP1aj * DIM;
++    const int SP2ajx = SP2aj * DIM;
++#    else
++    const int SP0ajx = (SP0cj >> 1) * DIM * STRIDE + (SP0cj & 1) * UNROLLJ;
++    const int SP1ajx = (SP1cj >> 1) * DIM * STRIDE + (SP1cj & 1) * UNROLLJ;
++    const int SP2ajx = (SP2cj >> 1) * DIM * STRIDE + (SP2cj & 1) * UNROLLJ;
++#    endif
++    const int SP0ajy = SP0ajx + STRIDE;
++    const int SP1ajy = SP1ajx + STRIDE;
++    const int SP2ajy = SP2ajx + STRIDE;
++    const int SP0ajz = SP0ajy + STRIDE;
++    const int SP1ajz = SP1ajy + STRIDE;
++    const int SP2ajz = SP2ajy + STRIDE;
++
++    /* Interaction (non-exclusion) mask of all 1's or 0's */
++    const auto SP0interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+0].excl), exclusionFilterV);
++    const auto SP1interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+1].excl), exclusionFilterV);
++    const auto SP2interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+2].excl), exclusionFilterV);
++
++    /* load j atom coordinates */
++    SimdReal SP0jx_S = loadJAtomData<kernelLayout>(x, SP0ajx);
++    SimdReal SP1jx_S = loadJAtomData<kernelLayout>(x, SP1ajx);
++    SimdReal SP2jx_S = loadJAtomData<kernelLayout>(x, SP2ajx);
++    SimdReal SP0jy_S = loadJAtomData<kernelLayout>(x, SP0ajy);
++    SimdReal SP1jy_S = loadJAtomData<kernelLayout>(x, SP1ajy);
++    SimdReal SP2jy_S = loadJAtomData<kernelLayout>(x, SP2ajy);
++    SimdReal SP0jz_S = loadJAtomData<kernelLayout>(x, SP0ajz);
++    SimdReal SP1jz_S = loadJAtomData<kernelLayout>(x, SP1ajz);
++    SimdReal SP2jz_S = loadJAtomData<kernelLayout>(x, SP2ajz);
++
++    /* Calculate distance */
++    const auto SP0dxV = genArr<nR>([&](int i) { return ixV[i] - SP0jx_S; });
++    const auto SP1dxV = genArr<nR>([&](int i) { return ixV[i] - SP1jx_S; });
++    const auto SP2dxV = genArr<nR>([&](int i) { return ixV[i] - SP2jx_S; });
++    const auto SP0dyV = genArr<nR>([&](int i) { return iyV[i] - SP0jy_S; });
++    const auto SP1dyV = genArr<nR>([&](int i) { return iyV[i] - SP1jy_S; });
++    const auto SP2dyV = genArr<nR>([&](int i) { return iyV[i] - SP2jy_S; });
++    const auto SP0dzV = genArr<nR>([&](int i) { return izV[i] - SP0jz_S; });
++    const auto SP1dzV = genArr<nR>([&](int i) { return izV[i] - SP1jz_S; });
++    const auto SP2dzV = genArr<nR>([&](int i) { return izV[i] - SP2jz_S; });
++
++    /* rsq = dx*dx + dy*dy + dz*dz */
++    auto SP0rSquaredV = genArr<nR>([&](int i) { return norm2(SP0dxV[i], SP0dyV[i], SP0dzV[i]); });
++    auto SP1rSquaredV = genArr<nR>([&](int i) { return norm2(SP1dxV[i], SP1dyV[i], SP1dzV[i]); });
++    auto SP2rSquaredV = genArr<nR>([&](int i) { return norm2(SP2dxV[i], SP2dyV[i], SP2dzV[i]); });
++
++    /* Do the cut-off check */
++    auto SP0withinCutoffV = genBoolArr<nR>([&](int i) { return SP0rSquaredV[i] < cutoffSquared; });
++    auto SP1withinCutoffV = genBoolArr<nR>([&](int i) { return SP1rSquaredV[i] < cutoffSquared; });
++    auto SP2withinCutoffV = genBoolArr<nR>([&](int i) { return SP2rSquaredV[i] < cutoffSquared; });
++
++    assert (! c_needToCheckExclusions);
++
++#    ifdef COUNT_PAIRS
++    npair += pairCountWithinCutoff(SP0rSquaredV, cutoffSquared);
++    npair += pairCountWithinCutoff(SP1rSquaredV, cutoffSquared);
++    npair += pairCountWithinCutoff(SP2rSquaredV, cutoffSquared);
++#    endif
++
++    // Ensure the distances do not fall below the limit where r^-12 overflows.
++    // This should never happen for normal interactions.
++    SP0rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP0rSquaredV[i], minDistanceSquared); });
++    SP1rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP1rSquaredV[i], minDistanceSquared); });
++    SP2rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP2rSquaredV[i], minDistanceSquared); });
++
++    /* Calculate 1/r */
++    std::array<SimdReal, nR> SP0rInvV;
++    std::array<SimdReal, nR> SP1rInvV;
++    std::array<SimdReal, nR> SP2rInvV;
++#    if !GMX_DOUBLE
++    SP0rInvV = genArr<nR>([&](int i) { return invsqrt(SP0rSquaredV[i]); });
++    SP1rInvV = genArr<nR>([&](int i) { return invsqrt(SP1rSquaredV[i]); });
++    SP2rInvV = genArr<nR>([&](int i) { return invsqrt(SP2rSquaredV[i]); });
++#    else
++    for (int i = 0; i < nR; i += 2)
++    {
++        invsqrtPair(SP0rSquaredV[i], SP0rSquaredV[i + 1], &SP0rInvV[i], &SP0rInvV[i + 1]);
++        invsqrtPair(SP1rSquaredV[i], SP1rSquaredV[i + 1], &SP1rInvV[i], &SP1rInvV[i + 1]);
++        invsqrtPair(SP2rSquaredV[i], SP2rSquaredV[i + 1], &SP2rInvV[i], &SP2rInvV[i + 1]);
++    }
++#    endif
++
++    std::array<SimdReal, nR> SP0qqV;
++    std::array<SimdReal, nR> SP1qqV;
++    std::array<SimdReal, nR> SP2qqV;
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Load parameters for j atom */
++        const SimdReal SP0jq_S = loadJAtomData<kernelLayout>(q, SP0aj);
++        const SimdReal SP1jq_S = loadJAtomData<kernelLayout>(q, SP1aj);
++        const SimdReal SP2jq_S = loadJAtomData<kernelLayout>(q, SP2aj);
++        SP0qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP0jq_S; });
++        SP1qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP1jq_S; });
++        SP2qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP2jq_S; });
++    }
++
++    /* Set rinv to zero for r beyond the cut-off */
++    SP0rInvV = genArr<nR>([&](int i) { return selectByMask(SP0rInvV[i], SP0withinCutoffV[i]); });
++    SP1rInvV = genArr<nR>([&](int i) { return selectByMask(SP1rInvV[i], SP1withinCutoffV[i]); });
++    SP2rInvV = genArr<nR>([&](int i) { return selectByMask(SP2rInvV[i], SP2withinCutoffV[i]); });
++
++    const auto SP0rInvSquaredV = genArr<nR>([&](int i) { return SP0rInvV[i] * SP0rInvV[i]; });
++    const auto SP1rInvSquaredV = genArr<nR>([&](int i) { return SP1rInvV[i] * SP1rInvV[i]; });
++    const auto SP2rInvSquaredV = genArr<nR>([&](int i) { return SP2rInvV[i] * SP2rInvV[i]; });
++
++    /* frcoul = qi*qj*(1/r - fsub)*r */
++    std::array<SimdReal, nR> SP0frCoulombV;
++    std::array<SimdReal, nR> SP1frCoulombV;
++    std::array<SimdReal, nR> SP2frCoulombV;
++    std::array<SimdReal, nR> SP0vCoulombV;
++    std::array<SimdReal, nR> SP1vCoulombV;
++    std::array<SimdReal, nR> SP2vCoulombV;
++
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Note that here we calculate force*r, not the usual force/r.
++         * This allows avoiding masking the reaction-field contribution,
++         * as frcoul is later multiplied by rinvsq which has been
++         * masked with the cut-off check.
++         */
++
++        /* Only add 1/r for non-excluded atom pairs */
++        std::array<SimdReal, nR> SP0rInvExclV;
++        std::array<SimdReal, nR> SP1rInvExclV;
++        std::array<SimdReal, nR> SP2rInvExclV;
++        if constexpr (c_haveExclusionForces)
++        {
++            SP0rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP0rInvV[i], SP0interactV[i]); });
++            SP1rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP1rInvV[i], SP1interactV[i]); });
++            SP2rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP2rInvV[i], SP2interactV[i]); });
++        }
++        else
++        {
++            /* We hope that the compiler optimizes rInvExclV away */
++            SP0rInvExclV = SP0rInvV;
++            SP1rInvExclV = SP1rInvV;
++            SP2rInvExclV = SP2rInvV;
++        }
++
++        /* Electrostatic interactions, frcoul =  qi*qj*(1/r - fsub)*r */
++        if constexpr (!calculateEnergies)
++        {
++            SP0frCoulombV = coulombCalculator.force<nR>(SP0rSquaredV, SP0rInvV, SP0rInvExclV, SP0withinCutoffV);
++            SP1frCoulombV = coulombCalculator.force<nR>(SP1rSquaredV, SP1rInvV, SP1rInvExclV, SP1withinCutoffV);
++            SP2frCoulombV = coulombCalculator.force<nR>(SP2rSquaredV, SP2rInvV, SP2rInvExclV, SP2withinCutoffV);
++
++            SP0frCoulombV = genArr<nR>([&](int i) { return SP0qqV[i] * SP0frCoulombV[i]; });
++            SP1frCoulombV = genArr<nR>([&](int i) { return SP1qqV[i] * SP1frCoulombV[i]; });
++            SP2frCoulombV = genArr<nR>([&](int i) { return SP2qqV[i] * SP2frCoulombV[i]; });
++        }
++        else
++        {
++            // The potential (RF or Ewald reciprocal) we need to subtract from 1/r
++            std::array<SimdReal, nR> SP0vCoulombCorrectionV;
++            std::array<SimdReal, nR> SP1vCoulombCorrectionV;
++            std::array<SimdReal, nR> SP2vCoulombCorrectionV;
++
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP0rSquaredV, SP0rInvV, SP0rInvExclV, SP0withinCutoffV, SP0frCoulombV, SP0vCoulombCorrectionV);
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP1rSquaredV, SP1rInvV, SP1rInvExclV, SP1withinCutoffV, SP1frCoulombV, SP1vCoulombCorrectionV);
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP2rSquaredV, SP2rInvV, SP2rInvExclV, SP2withinCutoffV, SP2frCoulombV, SP2vCoulombCorrectionV);
++
++            SP0frCoulombV = genArr<nR>([&](int i) { return SP0qqV[i] * SP0frCoulombV[i]; });
++            SP1frCoulombV = genArr<nR>([&](int i) { return SP1qqV[i] * SP1frCoulombV[i]; });
++            SP2frCoulombV = genArr<nR>([&](int i) { return SP2qqV[i] * SP2frCoulombV[i]; });
++
++            if constexpr (coulombType != KernelCoulombType::RF)
++            {
++                assert(! c_needToCheckExclusions);
++                {
++                    SP0vCoulombCorrectionV = genArr<nR>([&](int i) { return SP0vCoulombCorrectionV[i] + ewaldShift; });
++                    SP1vCoulombCorrectionV = genArr<nR>([&](int i) { return SP1vCoulombCorrectionV[i] + ewaldShift; });
++                    SP2vCoulombCorrectionV = genArr<nR>([&](int i) { return SP2vCoulombCorrectionV[i] + ewaldShift; });
++                }
++            }
++
++            /* Combine Coulomb and correction terms */
++            SP0vCoulombV = genArr<nR>( [&](int i) { return SP0qqV[i] * (SP0rInvExclV[i] - SP0vCoulombCorrectionV[i]); });
++            SP1vCoulombV = genArr<nR>( [&](int i) { return SP1qqV[i] * (SP1rInvExclV[i] - SP1vCoulombCorrectionV[i]); });
++            SP2vCoulombV = genArr<nR>( [&](int i) { return SP2qqV[i] * (SP2rInvExclV[i] - SP2vCoulombCorrectionV[i]); });
++
++            /* Mask energy for cut-off and diagonal */
++            SP0vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP0vCoulombV[i], SP0withinCutoffV[i]); });
++            SP1vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP1vCoulombV[i], SP1withinCutoffV[i]); });
++            SP2vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP2vCoulombV[i], SP2withinCutoffV[i]); });
++        }
++    }
++
++    /* Lennard-Jones interaction */
++    constexpr bool calculateLJInteractions = (c_iLJInteractions != ILJInteractions::None);
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP0frLJV;
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP1frLJV;
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP2frLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP0vLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP1vLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP2vLJV;
++
++    if constexpr (calculateLJInteractions)
++    {
++        std::array<SimdBool, c_nRLJ> SP0withinVdwCutoffV;
++        std::array<SimdBool, c_nRLJ> SP1withinVdwCutoffV;
++        std::array<SimdBool, c_nRLJ> SP2withinVdwCutoffV;
++        if constexpr (haveVdwCutoffCheck)
++        {
++            SP0withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP0rSquaredV[i] < vdwCutoffSquared; });
++            SP1withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP1rSquaredV[i] < vdwCutoffSquared; });
++            SP2withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP2rSquaredV[i] < vdwCutoffSquared; });
++        }
++
++        /* Index for loading LJ parameters, complicated when interleaving */
++        int SP0aj2;
++        int SP1aj2;
++        int SP2aj2;
++        if constexpr (ljCombinationRule != LJCombinationRule::None || haveLJEwaldGeometric)
++        {
++            if constexpr (GMX_SIMD_REAL_WIDTH == GMX_SIMD_J_UNROLL_SIZE * STRIDE)
++            {
++                SP0aj2 = SP0aj * 2;
++                SP1aj2 = SP1aj * 2;
++                SP2aj2 = SP2aj * 2;
++            }
++            else
++            {
++                SP0aj2 = (SP0cj >> 1) * 2 * STRIDE + (SP0cj & 1) * UNROLLJ;
++                SP1aj2 = (SP1cj >> 1) * 2 * STRIDE + (SP1cj & 1) * UNROLLJ;
++                SP2aj2 = (SP2cj >> 1) * 2 * STRIDE + (SP2cj & 1) * UNROLLJ;
++            }
++        }
++
++        if constexpr (ljCombinationRule != LJCombinationRule::LorentzBerthelot)
++        {
++            /* We use C6 and C12 */
++            std::array<SimdReal, c_nRLJ> SP0c6V;
++            std::array<SimdReal, c_nRLJ> SP1c6V;
++            std::array<SimdReal, c_nRLJ> SP2c6V;
++            std::array<SimdReal, c_nRLJ> SP0c12V;
++            std::array<SimdReal, c_nRLJ> SP1c12V;
++            std::array<SimdReal, c_nRLJ> SP2c12V;
++
++            if constexpr (ljCombinationRule == LJCombinationRule::None)
++            {
++                // Load 6*C6 and 6*C12 for all pairs
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP0aj, &SP0c6V[i], &SP0c12V[i]);
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP1aj, &SP1c6V[i], &SP1c12V[i]);
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP2aj, &SP2c6V[i], &SP2c12V[i]);
++                    }
++                    else
++                    {
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP0aj, &SP0c6V[i], &SP0c12V[i]);
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP1aj, &SP1c6V[i], &SP1c12V[i]);
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP2aj, &SP2c6V[i], &SP2c12V[i]);
++                    }
++                }
++            }
++
++            if constexpr (ljCombinationRule == LJCombinationRule::Geometric)
++            {
++                // Load j-atom sqrt(6*C6) and sqrt(12*C12)
++                SimdReal SP0c6J  = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++                SimdReal SP1c6J  = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++                SimdReal SP2c6J  = loadJAtomData<kernelLayout>(ljc, SP2aj2 + 0);
++                SimdReal SP0c12J = loadJAtomData<kernelLayout>(ljc, SP0aj2 + STRIDE);
++                SimdReal SP1c12J = loadJAtomData<kernelLayout>(ljc, SP1aj2 + STRIDE);
++                SimdReal SP2c12J = loadJAtomData<kernelLayout>(ljc, SP2aj2 + STRIDE);
++                // Compute the combined 6*C6 and 12*C12
++                SP0c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP0c6J; });
++                SP1c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP1c6J; });
++                SP2c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP2c6J; });
++                SP0c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP0c12J; });
++                SP1c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP1c12J; });
++                SP2c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP2c12J; });
++            }
++
++            // Compute the Lennard Jones force and optionally the energy
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP0rSquaredV, SP0rInvV, SP0rInvSquaredV, SP0interactV, SP0c6V, SP0c12V, sixth_S, twelveth_S, SP0frLJV, SP0vLJV);
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP1rSquaredV, SP1rInvV, SP1rInvSquaredV, SP1interactV, SP1c6V, SP1c12V, sixth_S, twelveth_S, SP1frLJV, SP1vLJV);
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP2rSquaredV, SP2rInvV, SP2rInvSquaredV, SP2interactV, SP2c6V, SP2c12V, sixth_S, twelveth_S, SP2frLJV, SP2vLJV);
++        }
++
++        if constexpr (ljCombinationRule == LJCombinationRule::LorentzBerthelot)
++        {
++            const SimdReal SP0halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++            const SimdReal SP1halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++            const SimdReal SP2halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP2aj2 + 0);
++            const SimdReal SP0sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP0aj2 + STRIDE);
++            const SimdReal SP1sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP1aj2 + STRIDE);
++            const SimdReal SP2sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP2aj2 + STRIDE);
++
++            const auto SP0sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP0halfSigmaJ; });
++            const auto SP1sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP1halfSigmaJ; });
++            const auto SP2sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP2halfSigmaJ; });
++            const auto SP0epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP0sqrtEpsilonJ; });
++            const auto SP1epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP1sqrtEpsilonJ; });
++            const auto SP2epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP2sqrtEpsilonJ; });
++
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP0rInvV, SP0interactV, SP0withinVdwCutoffV.data(), SP0sigmaV, SP0epsilonV, sixth_S, twelveth_S, SP0frLJV, SP0vLJV);
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP1rInvV, SP1interactV, SP1withinVdwCutoffV.data(), SP1sigmaV, SP1epsilonV, sixth_S, twelveth_S, SP1frLJV, SP1vLJV);
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP2rInvV, SP2interactV, SP2withinVdwCutoffV.data(), SP2sigmaV, SP2epsilonV, sixth_S, twelveth_S, SP2frLJV, SP2vLJV);
++        }
++
++        if constexpr (calculateEnergies && c_needToCheckExclusions)
++        {
++            /* The potential shift should be removed for excluded pairs */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0vLJV[i] = selectByMask(SP0vLJV[i], SP0interactV[i]);
++                SP1vLJV[i] = selectByMask(SP1vLJV[i], SP1interactV[i]);
++                SP2vLJV[i] = selectByMask(SP2vLJV[i], SP2interactV[i]);
++            }
++        }
++
++        if constexpr (haveLJEwaldGeometric)
++        {
++            /* Determine C6 for the grid using the geometric combination rule */
++            const SimdReal SP0c6J     = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++            const SimdReal SP1c6J     = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++            const SimdReal SP2c6J     = loadJAtomData<kernelLayout>(ljc, SP2aj2 + 0);
++            const auto     SP0c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP0c6J; });
++            const auto     SP1c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP1c6J; });
++            const auto     SP2c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP2c6J; });
++
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP0rSquaredV, SP0rInvSquaredV, SP0interactV, SP0withinCutoffV.data(), SP0c6GridV, ljEwaldParams, sixth_S, SP0frLJV, SP0vLJV);
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP1rSquaredV, SP1rInvSquaredV, SP1interactV, SP1withinCutoffV.data(), SP1c6GridV, ljEwaldParams, sixth_S, SP1frLJV, SP1vLJV);
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP2rSquaredV, SP2rInvSquaredV, SP2interactV, SP2withinCutoffV.data(), SP2c6GridV, ljEwaldParams, sixth_S, SP2frLJV, SP2vLJV);
++        }
++
++        if constexpr (haveVdwCutoffCheck)
++        {
++            /* frLJ is multiplied later by rinvsq, which is masked for the Coulomb
++             * cut-off, but if the VdW cut-off is shorter, we need to mask with that.
++             */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0frLJV[i] = selectByMask(SP0frLJV[i], SP0withinVdwCutoffV[i]);
++                SP1frLJV[i] = selectByMask(SP1frLJV[i], SP1withinVdwCutoffV[i]);
++                SP2frLJV[i] = selectByMask(SP2frLJV[i], SP2withinVdwCutoffV[i]);
++            }
++        }
++
++        if constexpr (calculateEnergies)
++        {
++            /* The potential shift should be removed for pairs beyond cut-off */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0vLJV[i] = selectByMask(SP0vLJV[i], haveVdwCutoffCheck ? SP0withinVdwCutoffV[i] : SP0withinCutoffV[i]);
++                SP1vLJV[i] = selectByMask(SP1vLJV[i], haveVdwCutoffCheck ? SP1withinVdwCutoffV[i] : SP1withinCutoffV[i]);
++                SP2vLJV[i] = selectByMask(SP2vLJV[i], haveVdwCutoffCheck ? SP2withinVdwCutoffV[i] : SP2withinCutoffV[i]);
++            }
++        }
++
++    } // calculateLJInteractions
++
++    if constexpr (calculateEnergies)
++    {
++        /* Energy group indices for two atoms packed into one int */
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP0egp_jj;
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP1egp_jj;
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP2egp_jj;
++
++        if constexpr (useEnergyGroups)
++        {
++            /* Extract the group pair index per j pair.
++             * Energy groups are stored per i-cluster, so things get
++             * complicated when the i- and j-cluster size don't match.
++             */
++#    if UNROLLJ == 2
++            const int SP0egps_j = nbatParams.energrp[SP0cj >> 1];
++            const int SP1egps_j = nbatParams.energrp[SP1cj >> 1];
++            const int SP2egps_j = nbatParams.energrp[SP2cj >> 1];
++            SP0egp_jj[0]        = ((SP0egps_j >> ((SP0cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++            SP1egp_jj[0]        = ((SP1egps_j >> ((SP1cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++            SP2egp_jj[0]        = ((SP2egps_j >> ((SP2cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++#    else
++            static_assert(UNROLLI <= UNROLLJ);
++
++            for (int jdi = 0; jdi < UNROLLJ / UNROLLI; jdi++)
++            {
++                const int SP0egps_j = nbatParams.energrp[SP0cj * (UNROLLJ / UNROLLI) + jdi];
++                const int SP1egps_j = nbatParams.energrp[SP1cj * (UNROLLJ / UNROLLI) + jdi];
++                const int SP2egps_j = nbatParams.energrp[SP2cj * (UNROLLJ / UNROLLI) + jdi];
++                for (int jj = 0; jj < (UNROLLI / 2); jj++)
++                {
++                    SP0egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP0egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                    SP1egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP1egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                    SP2egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP2egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                }
++            }
++#    endif
++        }
++
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            // Accumulate the Coulomb energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    vctot_S = vctot_S + SP0vCoulombV[i];
++                    vctot_S = vctot_S + SP1vCoulombV[i];
++                    vctot_S = vctot_S + SP2vCoulombV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP0vCoulombV[i], vctp[i], SP0egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP1vCoulombV[i], vctp[i], SP1egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP2vCoulombV[i], vctp[i], SP2egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP0vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP0egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP1vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP1egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP2vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP2egp_jj);
++                    }
++                }
++            }
++        }
++
++        if constexpr (c_iLJInteractions != ILJInteractions::None)
++        {
++            // Accumulate the Lennard-Jones energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    Vvdwtot_S = Vvdwtot_S + SP0vLJV[i];
++                    Vvdwtot_S = Vvdwtot_S + SP1vLJV[i];
++                    Vvdwtot_S = Vvdwtot_S + SP2vLJV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP0vLJV[i], vvdwtp[i], SP0egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP1vLJV[i], vvdwtp[i], SP1egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP2vLJV[i], vvdwtp[i], SP2egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP0vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP0egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP1vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP1egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP2vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP2egp_jj);
++                    }
++                }
++            }
++        }
++
++    } // calculateEnergies
++
++    if constexpr (c_iLJInteractions != ILJInteractions::None)
++    {
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * (SP0frCoulombV[i] + SP0frLJV[i]);
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * (SP1frCoulombV[i] + SP1frLJV[i]);
++                SP2fScalarV[i] = SP2rInvSquaredV[i] * (SP2frCoulombV[i] + SP2frLJV[i]);
++            }
++            for (int i = c_nRLJ; i < nR; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frCoulombV[i];
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frCoulombV[i];
++                SP2fScalarV[i] = SP2rInvSquaredV[i] * SP2frCoulombV[i];
++            }
++        }
++        else
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frLJV[i];
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frLJV[i];
++                SP2fScalarV[i] = SP2rInvSquaredV[i] * SP2frLJV[i];
++            }
++        }
++    }
++    else
++    {
++        for (int i = c_nRLJ; i < nR; i++)
++        {
++            SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frCoulombV[i];
++            SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frCoulombV[i];
++            SP2fScalarV[i] = SP2rInvSquaredV[i] * SP2frCoulombV[i];
++        }
++    }
++
++    /* Calculate temporary vectorial force */
++    const auto SP0txV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dxV[i]; });
++    const auto SP1txV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dxV[i]; });
++    const auto SP2txV = genArr<nR>([&](int i) { return SP2fScalarV[i] * SP2dxV[i]; });
++    const auto SP0tyV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dyV[i]; });
++    const auto SP1tyV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dyV[i]; });
++    const auto SP2tyV = genArr<nR>([&](int i) { return SP2fScalarV[i] * SP2dyV[i]; });
++    const auto SP0tzV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dzV[i]; });
++    const auto SP1tzV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dzV[i]; });
++    const auto SP2tzV = genArr<nR>([&](int i) { return SP2fScalarV[i] * SP2dzV[i]; });
++
++    /* Increment i atom force */
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP0txV[i]; });
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP1txV[i]; });
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP2txV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP0tyV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP1tyV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP2tyV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP0tzV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP1tzV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP2tzV[i]; });
++
++    /* Decrement j atom force */
++    if constexpr (kernelLayout == KernelLayout::r4xM)
++    {
++        store(f + SP0ajx, load<SimdReal>(f + SP0ajx) - (SP0txV[0] + SP0txV[1] + SP0txV[2] + SP0txV[3]));
++        store(f + SP1ajx, load<SimdReal>(f + SP1ajx) - (SP1txV[0] + SP1txV[1] + SP1txV[2] + SP1txV[3]));
++        store(f + SP2ajx, load<SimdReal>(f + SP2ajx) - (SP2txV[0] + SP2txV[1] + SP2txV[2] + SP2txV[3]));
++        store(f + SP0ajy, load<SimdReal>(f + SP0ajy) - (SP0tyV[0] + SP0tyV[1] + SP0tyV[2] + SP0tyV[3]));
++        store(f + SP1ajy, load<SimdReal>(f + SP1ajy) - (SP1tyV[0] + SP1tyV[1] + SP1tyV[2] + SP1tyV[3]));
++        store(f + SP2ajy, load<SimdReal>(f + SP2ajy) - (SP2tyV[0] + SP2tyV[1] + SP2tyV[2] + SP2tyV[3]));
++        store(f + SP0ajz, load<SimdReal>(f + SP0ajz) - (SP0tzV[0] + SP0tzV[1] + SP0tzV[2] + SP0tzV[3]));
++        store(f + SP1ajz, load<SimdReal>(f + SP1ajz) - (SP1tzV[0] + SP1tzV[1] + SP1tzV[2] + SP1tzV[3]));
++        store(f + SP2ajz, load<SimdReal>(f + SP2ajz) - (SP2tzV[0] + SP2tzV[1] + SP2tzV[2] + SP2tzV[3]));
++    }
++    else
++    {
++        decr3Hsimd(f + SP0aj * DIM, SP0txV[0] + SP0txV[1], SP0tyV[0] + SP0tyV[1], SP0tzV[0] + SP0tzV[1]);
++        decr3Hsimd(f + SP1aj * DIM, SP1txV[0] + SP1txV[1], SP1tyV[0] + SP1tyV[1], SP1tzV[0] + SP1tzV[1]);
++        decr3Hsimd(f + SP2aj * DIM, SP2txV[0] + SP2txV[1], SP2tyV[0] + SP2tyV[1], SP2tzV[0] + SP2tzV[1]);
++    }
++}
++
++#endif // !DOXYGEN
+diff --git a/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_3.h b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_3.h
+new file mode 100644
+index 0000000000..dc38c1cb6d
+--- /dev/null
++++ b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_inner_3.h
+@@ -0,0 +1,708 @@
++/*
++ * This file is part of the GROMACS molecular simulation package.
++ *
++ * Copyright 2012- The GROMACS Authors
++ * and the project initiators Erik Lindahl, Berk Hess and David van der Spoel.
++ * Consult the AUTHORS/COPYING files and https://www.gromacs.org for details.
++ *
++ * GROMACS is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 2.1
++ * of the License, or (at your option) any later version.
++ *
++ * GROMACS is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with GROMACS; if not, see
++ * https://www.gnu.org/licenses, or write to the Free Software Foundation,
++ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
++ *
++ * If you want to redistribute modifications to GROMACS, please
++ * consider that scientific software is very special. Version
++ * control is crucial - bugs must be traceable. We will be happy to
++ * consider code for inclusion in the official distribution, but
++ * derived work must not be called official GROMACS. Details are found
++ * in the README & COPYING files - if they are missing, get the
++ * official version at https://www.gromacs.org.
++ *
++ * To help us fund GROMACS development, we humbly ask that you cite
++ * the research papers on the package. Check out https://www.gromacs.org.
++ */
++
++/* Doxygen gets confused (buggy) about the block in this file in combination with
++ * the  namespace prefix, and thinks store is documented here.
++ * This will solve itself with the second-generation nbnxn kernels, so for now
++ * we just tell Doxygen to stay out.
++ */
++#ifndef DOXYGEN
++
++/* This is the innermost loop contents for the 4 x N atom simd kernel.
++ * This flavor of the kernel calculates interactions of 4 i-atoms
++ * with N j-atoms stored in N wide simd registers.
++ */
++
++{
++    /* Inner loop specific constexpr variables */
++    static_assert(nR % 2 == 0);
++    constexpr int c_nRLJ = (c_iLJInteractions == ILJInteractions::None
++                                    ? 0
++                                    : nR / (c_iLJInteractions == ILJInteractions::Half ? 2 : 1));
++    /* When calculating RF or Ewald interactions we calculate the electrostatic/LJ
++     * forces on excluded atom pairs here in the non-bonded loops.
++     * But when energies and/or virial is required we calculate them
++     * separately to as then it is easier to separate the energy and virial
++     * contributions.
++     */
++    constexpr bool c_haveExclusionForces =
++            (c_calculateCoulombInteractions || haveLJEwaldGeometric) && c_needToCheckExclusions;
++
++    /* The force times 1/r */
++    std::array<SimdReal, nR> SP0fScalarV;
++    std::array<SimdReal, nR> SP1fScalarV;
++    std::array<SimdReal, nR> SP2fScalarV;
++    std::array<SimdReal, nR> SP3fScalarV;
++
++    /* j-cluster index */
++    const int SP0cj = l_cj[cjind+0].cj;
++    const int SP1cj = l_cj[cjind+1].cj;
++    const int SP2cj = l_cj[cjind+2].cj;
++    const int SP3cj = l_cj[cjind+3].cj;
++
++    /* Atom indices (of the first atom in the cluster) */
++    const int gmx_unused SP0aj = SP0cj * UNROLLJ;
++    const int gmx_unused SP1aj = SP1cj * UNROLLJ;
++    const int gmx_unused SP2aj = SP2cj * UNROLLJ;
++    const int gmx_unused SP3aj = SP3cj * UNROLLJ;
++#    if UNROLLJ == STRIDE
++    const int SP0ajx = SP0aj * DIM;
++    const int SP1ajx = SP1aj * DIM;
++    const int SP2ajx = SP2aj * DIM;
++    const int SP3ajx = SP3aj * DIM;
++#    else
++    const int SP0ajx = (SP0cj >> 1) * DIM * STRIDE + (SP0cj & 1) * UNROLLJ;
++    const int SP1ajx = (SP1cj >> 1) * DIM * STRIDE + (SP1cj & 1) * UNROLLJ;
++    const int SP2ajx = (SP2cj >> 1) * DIM * STRIDE + (SP2cj & 1) * UNROLLJ;
++    const int SP3ajx = (SP3cj >> 1) * DIM * STRIDE + (SP3cj & 1) * UNROLLJ;
++#    endif
++    const int SP0ajy = SP0ajx + STRIDE;
++    const int SP1ajy = SP1ajx + STRIDE;
++    const int SP2ajy = SP2ajx + STRIDE;
++    const int SP3ajy = SP3ajx + STRIDE;
++    const int SP0ajz = SP0ajy + STRIDE;
++    const int SP1ajz = SP1ajy + STRIDE;
++    const int SP2ajz = SP2ajy + STRIDE;
++    const int SP3ajz = SP3ajy + STRIDE;
++
++    /* Interaction (non-exclusion) mask of all 1's or 0's */
++    const auto SP0interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+0].excl), exclusionFilterV);
++    const auto SP1interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+1].excl), exclusionFilterV);
++    const auto SP2interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+2].excl), exclusionFilterV);
++    const auto SP3interactV = loadSimdPairInteractionMasks<c_needToCheckExclusions, kernelLayout>( static_cast<int>(l_cj[cjind+3].excl), exclusionFilterV);
++
++    /* load j atom coordinates */
++    SimdReal SP0jx_S = loadJAtomData<kernelLayout>(x, SP0ajx);
++    SimdReal SP1jx_S = loadJAtomData<kernelLayout>(x, SP1ajx);
++    SimdReal SP2jx_S = loadJAtomData<kernelLayout>(x, SP2ajx);
++    SimdReal SP3jx_S = loadJAtomData<kernelLayout>(x, SP3ajx);
++    SimdReal SP0jy_S = loadJAtomData<kernelLayout>(x, SP0ajy);
++    SimdReal SP1jy_S = loadJAtomData<kernelLayout>(x, SP1ajy);
++    SimdReal SP2jy_S = loadJAtomData<kernelLayout>(x, SP2ajy);
++    SimdReal SP3jy_S = loadJAtomData<kernelLayout>(x, SP3ajy);
++    SimdReal SP0jz_S = loadJAtomData<kernelLayout>(x, SP0ajz);
++    SimdReal SP1jz_S = loadJAtomData<kernelLayout>(x, SP1ajz);
++    SimdReal SP2jz_S = loadJAtomData<kernelLayout>(x, SP2ajz);
++    SimdReal SP3jz_S = loadJAtomData<kernelLayout>(x, SP3ajz);
++
++    /* Calculate distance */
++    const auto SP0dxV = genArr<nR>([&](int i) { return ixV[i] - SP0jx_S; });
++    const auto SP1dxV = genArr<nR>([&](int i) { return ixV[i] - SP1jx_S; });
++    const auto SP2dxV = genArr<nR>([&](int i) { return ixV[i] - SP2jx_S; });
++    const auto SP3dxV = genArr<nR>([&](int i) { return ixV[i] - SP3jx_S; });
++    const auto SP0dyV = genArr<nR>([&](int i) { return iyV[i] - SP0jy_S; });
++    const auto SP1dyV = genArr<nR>([&](int i) { return iyV[i] - SP1jy_S; });
++    const auto SP2dyV = genArr<nR>([&](int i) { return iyV[i] - SP2jy_S; });
++    const auto SP3dyV = genArr<nR>([&](int i) { return iyV[i] - SP3jy_S; });
++    const auto SP0dzV = genArr<nR>([&](int i) { return izV[i] - SP0jz_S; });
++    const auto SP1dzV = genArr<nR>([&](int i) { return izV[i] - SP1jz_S; });
++    const auto SP2dzV = genArr<nR>([&](int i) { return izV[i] - SP2jz_S; });
++    const auto SP3dzV = genArr<nR>([&](int i) { return izV[i] - SP3jz_S; });
++
++    /* rsq = dx*dx + dy*dy + dz*dz */
++    auto SP0rSquaredV = genArr<nR>([&](int i) { return norm2(SP0dxV[i], SP0dyV[i], SP0dzV[i]); });
++    auto SP1rSquaredV = genArr<nR>([&](int i) { return norm2(SP1dxV[i], SP1dyV[i], SP1dzV[i]); });
++    auto SP2rSquaredV = genArr<nR>([&](int i) { return norm2(SP2dxV[i], SP2dyV[i], SP2dzV[i]); });
++    auto SP3rSquaredV = genArr<nR>([&](int i) { return norm2(SP3dxV[i], SP3dyV[i], SP3dzV[i]); });
++
++    /* Do the cut-off check */
++    auto SP0withinCutoffV = genBoolArr<nR>([&](int i) { return SP0rSquaredV[i] < cutoffSquared; });
++    auto SP1withinCutoffV = genBoolArr<nR>([&](int i) { return SP1rSquaredV[i] < cutoffSquared; });
++    auto SP2withinCutoffV = genBoolArr<nR>([&](int i) { return SP2rSquaredV[i] < cutoffSquared; });
++    auto SP3withinCutoffV = genBoolArr<nR>([&](int i) { return SP3rSquaredV[i] < cutoffSquared; });
++
++    assert (! c_needToCheckExclusions);
++
++#    ifdef COUNT_PAIRS
++    npair += pairCountWithinCutoff(SP0rSquaredV, cutoffSquared);
++    npair += pairCountWithinCutoff(SP1rSquaredV, cutoffSquared);
++    npair += pairCountWithinCutoff(SP2rSquaredV, cutoffSquared);
++    npair += pairCountWithinCutoff(SP3rSquaredV, cutoffSquared);
++#    endif
++
++    // Ensure the distances do not fall below the limit where r^-12 overflows.
++    // This should never happen for normal interactions.
++    SP0rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP0rSquaredV[i], minDistanceSquared); });
++    SP1rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP1rSquaredV[i], minDistanceSquared); });
++    SP2rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP2rSquaredV[i], minDistanceSquared); });
++    SP3rSquaredV = genArr<nR>([&](int i) { return gmx::max(SP3rSquaredV[i], minDistanceSquared); });
++
++    /* Calculate 1/r */
++    std::array<SimdReal, nR> SP0rInvV;
++    std::array<SimdReal, nR> SP1rInvV;
++    std::array<SimdReal, nR> SP2rInvV;
++    std::array<SimdReal, nR> SP3rInvV;
++#    if !GMX_DOUBLE
++    SP0rInvV = genArr<nR>([&](int i) { return invsqrt(SP0rSquaredV[i]); });
++    SP1rInvV = genArr<nR>([&](int i) { return invsqrt(SP1rSquaredV[i]); });
++    SP2rInvV = genArr<nR>([&](int i) { return invsqrt(SP2rSquaredV[i]); });
++    SP3rInvV = genArr<nR>([&](int i) { return invsqrt(SP3rSquaredV[i]); });
++#    else
++    for (int i = 0; i < nR; i += 2)
++    {
++        invsqrtPair(SP0rSquaredV[i], SP0rSquaredV[i + 1], &SP0rInvV[i], &SP0rInvV[i + 1]);
++        invsqrtPair(SP1rSquaredV[i], SP1rSquaredV[i + 1], &SP1rInvV[i], &SP1rInvV[i + 1]);
++        invsqrtPair(SP2rSquaredV[i], SP2rSquaredV[i + 1], &SP2rInvV[i], &SP2rInvV[i + 1]);
++        invsqrtPair(SP3rSquaredV[i], SP3rSquaredV[i + 1], &SP3rInvV[i], &SP3rInvV[i + 1]);
++    }
++#    endif
++
++    std::array<SimdReal, nR> SP0qqV;
++    std::array<SimdReal, nR> SP1qqV;
++    std::array<SimdReal, nR> SP2qqV;
++    std::array<SimdReal, nR> SP3qqV;
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Load parameters for j atom */
++        const SimdReal SP0jq_S = loadJAtomData<kernelLayout>(q, SP0aj);
++        const SimdReal SP1jq_S = loadJAtomData<kernelLayout>(q, SP1aj);
++        const SimdReal SP2jq_S = loadJAtomData<kernelLayout>(q, SP2aj);
++        const SimdReal SP3jq_S = loadJAtomData<kernelLayout>(q, SP3aj);
++        SP0qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP0jq_S; });
++        SP1qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP1jq_S; });
++        SP2qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP2jq_S; });
++        SP3qqV                 = genArr<nR>([&](int i) { return chargeIV[i] * SP3jq_S; });
++    }
++
++    /* Set rinv to zero for r beyond the cut-off */
++    SP0rInvV = genArr<nR>([&](int i) { return selectByMask(SP0rInvV[i], SP0withinCutoffV[i]); });
++    SP1rInvV = genArr<nR>([&](int i) { return selectByMask(SP1rInvV[i], SP1withinCutoffV[i]); });
++    SP2rInvV = genArr<nR>([&](int i) { return selectByMask(SP2rInvV[i], SP2withinCutoffV[i]); });
++    SP3rInvV = genArr<nR>([&](int i) { return selectByMask(SP3rInvV[i], SP3withinCutoffV[i]); });
++
++    const auto SP0rInvSquaredV = genArr<nR>([&](int i) { return SP0rInvV[i] * SP0rInvV[i]; });
++    const auto SP1rInvSquaredV = genArr<nR>([&](int i) { return SP1rInvV[i] * SP1rInvV[i]; });
++    const auto SP2rInvSquaredV = genArr<nR>([&](int i) { return SP2rInvV[i] * SP2rInvV[i]; });
++    const auto SP3rInvSquaredV = genArr<nR>([&](int i) { return SP3rInvV[i] * SP3rInvV[i]; });
++
++    /* frcoul = qi*qj*(1/r - fsub)*r */
++    std::array<SimdReal, nR> SP0frCoulombV;
++    std::array<SimdReal, nR> SP1frCoulombV;
++    std::array<SimdReal, nR> SP2frCoulombV;
++    std::array<SimdReal, nR> SP3frCoulombV;
++    std::array<SimdReal, nR> SP0vCoulombV;
++    std::array<SimdReal, nR> SP1vCoulombV;
++    std::array<SimdReal, nR> SP2vCoulombV;
++    std::array<SimdReal, nR> SP3vCoulombV;
++
++    if constexpr (c_calculateCoulombInteractions)
++    {
++        /* Note that here we calculate force*r, not the usual force/r.
++         * This allows avoiding masking the reaction-field contribution,
++         * as frcoul is later multiplied by rinvsq which has been
++         * masked with the cut-off check.
++         */
++
++        /* Only add 1/r for non-excluded atom pairs */
++        std::array<SimdReal, nR> SP0rInvExclV;
++        std::array<SimdReal, nR> SP1rInvExclV;
++        std::array<SimdReal, nR> SP2rInvExclV;
++        std::array<SimdReal, nR> SP3rInvExclV;
++        if constexpr (c_haveExclusionForces)
++        {
++            SP0rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP0rInvV[i], SP0interactV[i]); });
++            SP1rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP1rInvV[i], SP1interactV[i]); });
++            SP2rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP2rInvV[i], SP2interactV[i]); });
++            SP3rInvExclV = genArr<nR>([&](int i) { return selectByMask(SP3rInvV[i], SP3interactV[i]); });
++        }
++        else
++        {
++            /* We hope that the compiler optimizes rInvExclV away */
++            SP0rInvExclV = SP0rInvV;
++            SP1rInvExclV = SP1rInvV;
++            SP2rInvExclV = SP2rInvV;
++            SP3rInvExclV = SP3rInvV;
++        }
++
++        /* Electrostatic interactions, frcoul =  qi*qj*(1/r - fsub)*r */
++        if constexpr (!calculateEnergies)
++        {
++            SP0frCoulombV = coulombCalculator.force<nR>(SP0rSquaredV, SP0rInvV, SP0rInvExclV, SP0withinCutoffV);
++            SP1frCoulombV = coulombCalculator.force<nR>(SP1rSquaredV, SP1rInvV, SP1rInvExclV, SP1withinCutoffV);
++            SP2frCoulombV = coulombCalculator.force<nR>(SP2rSquaredV, SP2rInvV, SP2rInvExclV, SP2withinCutoffV);
++            SP3frCoulombV = coulombCalculator.force<nR>(SP3rSquaredV, SP3rInvV, SP3rInvExclV, SP3withinCutoffV);
++
++            SP0frCoulombV = genArr<nR>([&](int i) { return SP0qqV[i] * SP0frCoulombV[i]; });
++            SP1frCoulombV = genArr<nR>([&](int i) { return SP1qqV[i] * SP1frCoulombV[i]; });
++            SP2frCoulombV = genArr<nR>([&](int i) { return SP2qqV[i] * SP2frCoulombV[i]; });
++            SP3frCoulombV = genArr<nR>([&](int i) { return SP3qqV[i] * SP3frCoulombV[i]; });
++        }
++        else
++        {
++            // The potential (RF or Ewald reciprocal) we need to subtract from 1/r
++            std::array<SimdReal, nR> SP0vCoulombCorrectionV;
++            std::array<SimdReal, nR> SP1vCoulombCorrectionV;
++            std::array<SimdReal, nR> SP2vCoulombCorrectionV;
++            std::array<SimdReal, nR> SP3vCoulombCorrectionV;
++
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP0rSquaredV, SP0rInvV, SP0rInvExclV, SP0withinCutoffV, SP0frCoulombV, SP0vCoulombCorrectionV);
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP1rSquaredV, SP1rInvV, SP1rInvExclV, SP1withinCutoffV, SP1frCoulombV, SP1vCoulombCorrectionV);
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP2rSquaredV, SP2rInvV, SP2rInvExclV, SP2withinCutoffV, SP2frCoulombV, SP2vCoulombCorrectionV);
++            coulombCalculator.forceAndCorrectionEnergy<nR>( SP3rSquaredV, SP3rInvV, SP3rInvExclV, SP3withinCutoffV, SP3frCoulombV, SP3vCoulombCorrectionV);
++
++            SP0frCoulombV = genArr<nR>([&](int i) { return SP0qqV[i] * SP0frCoulombV[i]; });
++            SP1frCoulombV = genArr<nR>([&](int i) { return SP1qqV[i] * SP1frCoulombV[i]; });
++            SP2frCoulombV = genArr<nR>([&](int i) { return SP2qqV[i] * SP2frCoulombV[i]; });
++            SP3frCoulombV = genArr<nR>([&](int i) { return SP3qqV[i] * SP3frCoulombV[i]; });
++
++            if constexpr (coulombType != KernelCoulombType::RF)
++            {
++                assert(! c_needToCheckExclusions);
++                {
++                    SP0vCoulombCorrectionV = genArr<nR>([&](int i) { return SP0vCoulombCorrectionV[i] + ewaldShift; });
++                    SP1vCoulombCorrectionV = genArr<nR>([&](int i) { return SP1vCoulombCorrectionV[i] + ewaldShift; });
++                    SP2vCoulombCorrectionV = genArr<nR>([&](int i) { return SP2vCoulombCorrectionV[i] + ewaldShift; });
++                    SP3vCoulombCorrectionV = genArr<nR>([&](int i) { return SP3vCoulombCorrectionV[i] + ewaldShift; });
++                }
++            }
++
++            /* Combine Coulomb and correction terms */
++            SP0vCoulombV = genArr<nR>( [&](int i) { return SP0qqV[i] * (SP0rInvExclV[i] - SP0vCoulombCorrectionV[i]); });
++            SP1vCoulombV = genArr<nR>( [&](int i) { return SP1qqV[i] * (SP1rInvExclV[i] - SP1vCoulombCorrectionV[i]); });
++            SP2vCoulombV = genArr<nR>( [&](int i) { return SP2qqV[i] * (SP2rInvExclV[i] - SP2vCoulombCorrectionV[i]); });
++            SP3vCoulombV = genArr<nR>( [&](int i) { return SP3qqV[i] * (SP3rInvExclV[i] - SP3vCoulombCorrectionV[i]); });
++
++            /* Mask energy for cut-off and diagonal */
++            SP0vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP0vCoulombV[i], SP0withinCutoffV[i]); });
++            SP1vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP1vCoulombV[i], SP1withinCutoffV[i]); });
++            SP2vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP2vCoulombV[i], SP2withinCutoffV[i]); });
++            SP3vCoulombV = genArr<nR>([&](int i) { return selectByMask(SP3vCoulombV[i], SP3withinCutoffV[i]); });
++        }
++    }
++
++    /* Lennard-Jones interaction */
++    constexpr bool calculateLJInteractions = (c_iLJInteractions != ILJInteractions::None);
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP0frLJV;
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP1frLJV;
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP2frLJV;
++    std::array<SimdReal, calculateLJInteractions ? c_nRLJ : 0>                        SP3frLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP0vLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP1vLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP2vLJV;
++    std::array<SimdReal, (calculateLJInteractions && calculateEnergies) ? c_nRLJ : 0> SP3vLJV;
++
++    if constexpr (calculateLJInteractions)
++    {
++        std::array<SimdBool, c_nRLJ> SP0withinVdwCutoffV;
++        std::array<SimdBool, c_nRLJ> SP1withinVdwCutoffV;
++        std::array<SimdBool, c_nRLJ> SP2withinVdwCutoffV;
++        std::array<SimdBool, c_nRLJ> SP3withinVdwCutoffV;
++        if constexpr (haveVdwCutoffCheck)
++        {
++            SP0withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP0rSquaredV[i] < vdwCutoffSquared; });
++            SP1withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP1rSquaredV[i] < vdwCutoffSquared; });
++            SP2withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP2rSquaredV[i] < vdwCutoffSquared; });
++            SP3withinVdwCutoffV = genBoolArr<c_nRLJ>([&](int i) { return SP3rSquaredV[i] < vdwCutoffSquared; });
++        }
++
++        /* Index for loading LJ parameters, complicated when interleaving */
++        int SP0aj2;
++        int SP1aj2;
++        int SP2aj2;
++        int SP3aj2;
++        if constexpr (ljCombinationRule != LJCombinationRule::None || haveLJEwaldGeometric)
++        {
++            if constexpr (GMX_SIMD_REAL_WIDTH == GMX_SIMD_J_UNROLL_SIZE * STRIDE)
++            {
++                SP0aj2 = SP0aj * 2;
++                SP1aj2 = SP1aj * 2;
++                SP2aj2 = SP2aj * 2;
++                SP3aj2 = SP3aj * 2;
++            }
++            else
++            {
++                SP0aj2 = (SP0cj >> 1) * 2 * STRIDE + (SP0cj & 1) * UNROLLJ;
++                SP1aj2 = (SP1cj >> 1) * 2 * STRIDE + (SP1cj & 1) * UNROLLJ;
++                SP2aj2 = (SP2cj >> 1) * 2 * STRIDE + (SP2cj & 1) * UNROLLJ;
++                SP3aj2 = (SP3cj >> 1) * 2 * STRIDE + (SP3cj & 1) * UNROLLJ;
++            }
++        }
++
++        if constexpr (ljCombinationRule != LJCombinationRule::LorentzBerthelot)
++        {
++            /* We use C6 and C12 */
++            std::array<SimdReal, c_nRLJ> SP0c6V;
++            std::array<SimdReal, c_nRLJ> SP1c6V;
++            std::array<SimdReal, c_nRLJ> SP2c6V;
++            std::array<SimdReal, c_nRLJ> SP3c6V;
++            std::array<SimdReal, c_nRLJ> SP0c12V;
++            std::array<SimdReal, c_nRLJ> SP1c12V;
++            std::array<SimdReal, c_nRLJ> SP2c12V;
++            std::array<SimdReal, c_nRLJ> SP3c12V;
++
++            if constexpr (ljCombinationRule == LJCombinationRule::None)
++            {
++                // Load 6*C6 and 6*C12 for all pairs
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP0aj, &SP0c6V[i], &SP0c12V[i]);
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP1aj, &SP1c6V[i], &SP1c12V[i]);
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP2aj, &SP2c6V[i], &SP2c12V[i]);
++                        gatherLoadTranspose<c_simdBestPairAlignment>( nbfpI[i], type + SP3aj, &SP3c6V[i], &SP3c12V[i]);
++                    }
++                    else
++                    {
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP0aj, &SP0c6V[i], &SP0c12V[i]);
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP1aj, &SP1c6V[i], &SP1c12V[i]);
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP2aj, &SP2c6V[i], &SP2c12V[i]);
++                        gatherLoadTransposeHsimd<c_simdBestPairAlignment>( nbfpI[i * 2], nbfpI[i * 2 + 1], type + SP3aj, &SP3c6V[i], &SP3c12V[i]);
++                    }
++                }
++            }
++
++            if constexpr (ljCombinationRule == LJCombinationRule::Geometric)
++            {
++                // Load j-atom sqrt(6*C6) and sqrt(12*C12)
++                SimdReal SP0c6J  = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++                SimdReal SP1c6J  = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++                SimdReal SP2c6J  = loadJAtomData<kernelLayout>(ljc, SP2aj2 + 0);
++                SimdReal SP3c6J  = loadJAtomData<kernelLayout>(ljc, SP3aj2 + 0);
++                SimdReal SP0c12J = loadJAtomData<kernelLayout>(ljc, SP0aj2 + STRIDE);
++                SimdReal SP1c12J = loadJAtomData<kernelLayout>(ljc, SP1aj2 + STRIDE);
++                SimdReal SP2c12J = loadJAtomData<kernelLayout>(ljc, SP2aj2 + STRIDE);
++                SimdReal SP3c12J = loadJAtomData<kernelLayout>(ljc, SP3aj2 + STRIDE);
++                // Compute the combined 6*C6 and 12*C12
++                SP0c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP0c6J; });
++                SP1c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP1c6J; });
++                SP2c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP2c6J; });
++                SP3c6V  = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP3c6J; });
++                SP0c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP0c12J; });
++                SP1c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP1c12J; });
++                SP2c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP2c12J; });
++                SP3c12V = genArr<c_nRLJ>([&](int i) { return c12GeomV[i] * SP3c12J; });
++            }
++
++            // Compute the Lennard Jones force and optionally the energy
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP0rSquaredV, SP0rInvV, SP0rInvSquaredV, SP0interactV, SP0c6V, SP0c12V, sixth_S, twelveth_S, SP0frLJV, SP0vLJV);
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP1rSquaredV, SP1rInvV, SP1rInvSquaredV, SP1interactV, SP1c6V, SP1c12V, sixth_S, twelveth_S, SP1frLJV, SP1vLJV);
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP2rSquaredV, SP2rInvV, SP2rInvSquaredV, SP2interactV, SP2c6V, SP2c12V, sixth_S, twelveth_S, SP2frLJV, SP2vLJV);
++            ljCalculator.forceC6C12<c_nRLJ, c_haveExclusionForces>( SP3rSquaredV, SP3rInvV, SP3rInvSquaredV, SP3interactV, SP3c6V, SP3c12V, sixth_S, twelveth_S, SP3frLJV, SP3vLJV);
++        }
++
++        if constexpr (ljCombinationRule == LJCombinationRule::LorentzBerthelot)
++        {
++            const SimdReal SP0halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++            const SimdReal SP1halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++            const SimdReal SP2halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP2aj2 + 0);
++            const SimdReal SP3halfSigmaJ   = loadJAtomData<kernelLayout>(ljc, SP3aj2 + 0);
++            const SimdReal SP0sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP0aj2 + STRIDE);
++            const SimdReal SP1sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP1aj2 + STRIDE);
++            const SimdReal SP2sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP2aj2 + STRIDE);
++            const SimdReal SP3sqrtEpsilonJ = loadJAtomData<kernelLayout>(ljc, SP3aj2 + STRIDE);
++
++            const auto SP0sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP0halfSigmaJ; });
++            const auto SP1sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP1halfSigmaJ; });
++            const auto SP2sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP2halfSigmaJ; });
++            const auto SP3sigmaV = genArr<c_nRLJ>([&](int i) { return halfSigmaIV[i] + SP3halfSigmaJ; });
++            const auto SP0epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP0sqrtEpsilonJ; });
++            const auto SP1epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP1sqrtEpsilonJ; });
++            const auto SP2epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP2sqrtEpsilonJ; });
++            const auto SP3epsilonV = genArr<c_nRLJ>([&](int i) { return sqrtEpsilonIV[i] * SP3sqrtEpsilonJ; });
++
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP0rInvV, SP0interactV, SP0withinVdwCutoffV.data(), SP0sigmaV, SP0epsilonV, sixth_S, twelveth_S, SP0frLJV, SP0vLJV);
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP1rInvV, SP1interactV, SP1withinVdwCutoffV.data(), SP1sigmaV, SP1epsilonV, sixth_S, twelveth_S, SP1frLJV, SP1vLJV);
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP2rInvV, SP2interactV, SP2withinVdwCutoffV.data(), SP2sigmaV, SP2epsilonV, sixth_S, twelveth_S, SP2frLJV, SP2vLJV);
++            ljCalculator.forceSigmaEpsilon<c_nRLJ, c_haveExclusionForces, haveVdwCutoffCheck>( SP3rInvV, SP3interactV, SP3withinVdwCutoffV.data(), SP3sigmaV, SP3epsilonV, sixth_S, twelveth_S, SP3frLJV, SP3vLJV);
++        }
++
++        if constexpr (calculateEnergies && c_needToCheckExclusions)
++        {
++            /* The potential shift should be removed for excluded pairs */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0vLJV[i] = selectByMask(SP0vLJV[i], SP0interactV[i]);
++                SP1vLJV[i] = selectByMask(SP1vLJV[i], SP1interactV[i]);
++                SP2vLJV[i] = selectByMask(SP2vLJV[i], SP2interactV[i]);
++                SP3vLJV[i] = selectByMask(SP3vLJV[i], SP3interactV[i]);
++            }
++        }
++
++        if constexpr (haveLJEwaldGeometric)
++        {
++            /* Determine C6 for the grid using the geometric combination rule */
++            const SimdReal SP0c6J     = loadJAtomData<kernelLayout>(ljc, SP0aj2 + 0);
++            const SimdReal SP1c6J     = loadJAtomData<kernelLayout>(ljc, SP1aj2 + 0);
++            const SimdReal SP2c6J     = loadJAtomData<kernelLayout>(ljc, SP2aj2 + 0);
++            const SimdReal SP3c6J     = loadJAtomData<kernelLayout>(ljc, SP3aj2 + 0);
++            const auto     SP0c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP0c6J; });
++            const auto     SP1c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP1c6J; });
++            const auto     SP2c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP2c6J; });
++            const auto     SP3c6GridV = genArr<c_nRLJ>([&](int i) { return c6GeomV[i] * SP3c6J; });
++
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP0rSquaredV, SP0rInvSquaredV, SP0interactV, SP0withinCutoffV.data(), SP0c6GridV, ljEwaldParams, sixth_S, SP0frLJV, SP0vLJV);
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP1rSquaredV, SP1rInvSquaredV, SP1interactV, SP1withinCutoffV.data(), SP1c6GridV, ljEwaldParams, sixth_S, SP1frLJV, SP1vLJV);
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP2rSquaredV, SP2rInvSquaredV, SP2interactV, SP2withinCutoffV.data(), SP2c6GridV, ljEwaldParams, sixth_S, SP2frLJV, SP2vLJV);
++            addLennardJonesEwaldCorrections<c_nRLJ, c_needToCheckExclusions, calculateEnergies>( SP3rSquaredV, SP3rInvSquaredV, SP3interactV, SP3withinCutoffV.data(), SP3c6GridV, ljEwaldParams, sixth_S, SP3frLJV, SP3vLJV);
++        }
++
++        if constexpr (haveVdwCutoffCheck)
++        {
++            /* frLJ is multiplied later by rinvsq, which is masked for the Coulomb
++             * cut-off, but if the VdW cut-off is shorter, we need to mask with that.
++             */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0frLJV[i] = selectByMask(SP0frLJV[i], SP0withinVdwCutoffV[i]);
++                SP1frLJV[i] = selectByMask(SP1frLJV[i], SP1withinVdwCutoffV[i]);
++                SP2frLJV[i] = selectByMask(SP2frLJV[i], SP2withinVdwCutoffV[i]);
++                SP3frLJV[i] = selectByMask(SP3frLJV[i], SP3withinVdwCutoffV[i]);
++            }
++        }
++
++        if constexpr (calculateEnergies)
++        {
++            /* The potential shift should be removed for pairs beyond cut-off */
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0vLJV[i] = selectByMask(SP0vLJV[i], haveVdwCutoffCheck ? SP0withinVdwCutoffV[i] : SP0withinCutoffV[i]);
++                SP1vLJV[i] = selectByMask(SP1vLJV[i], haveVdwCutoffCheck ? SP1withinVdwCutoffV[i] : SP1withinCutoffV[i]);
++                SP2vLJV[i] = selectByMask(SP2vLJV[i], haveVdwCutoffCheck ? SP2withinVdwCutoffV[i] : SP2withinCutoffV[i]);
++                SP3vLJV[i] = selectByMask(SP3vLJV[i], haveVdwCutoffCheck ? SP3withinVdwCutoffV[i] : SP3withinCutoffV[i]);
++            }
++        }
++
++    } // calculateLJInteractions
++
++    if constexpr (calculateEnergies)
++    {
++        /* Energy group indices for two atoms packed into one int */
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP0egp_jj;
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP1egp_jj;
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP2egp_jj;
++        std::array<int, useEnergyGroups ? UNROLLJ / 2 : 0> SP3egp_jj;
++
++        if constexpr (useEnergyGroups)
++        {
++            /* Extract the group pair index per j pair.
++             * Energy groups are stored per i-cluster, so things get
++             * complicated when the i- and j-cluster size don't match.
++             */
++#    if UNROLLJ == 2
++            const int SP0egps_j = nbatParams.energrp[SP0cj >> 1];
++            const int SP1egps_j = nbatParams.energrp[SP1cj >> 1];
++            const int SP2egps_j = nbatParams.energrp[SP2cj >> 1];
++            const int SP3egps_j = nbatParams.energrp[SP3cj >> 1];
++            SP0egp_jj[0]        = ((SP0egps_j >> ((SP0cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++            SP1egp_jj[0]        = ((SP1egps_j >> ((SP1cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++            SP2egp_jj[0]        = ((SP2egps_j >> ((SP2cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++            SP3egp_jj[0]        = ((SP3egps_j >> ((SP3cj & 1) * egps_jshift)) & egps_jmask) * egps_jstride;
++#    else
++            static_assert(UNROLLI <= UNROLLJ);
++
++            for (int jdi = 0; jdi < UNROLLJ / UNROLLI; jdi++)
++            {
++                const int SP0egps_j = nbatParams.energrp[SP0cj * (UNROLLJ / UNROLLI) + jdi];
++                const int SP1egps_j = nbatParams.energrp[SP1cj * (UNROLLJ / UNROLLI) + jdi];
++                const int SP2egps_j = nbatParams.energrp[SP2cj * (UNROLLJ / UNROLLI) + jdi];
++                const int SP3egps_j = nbatParams.energrp[SP3cj * (UNROLLJ / UNROLLI) + jdi];
++                for (int jj = 0; jj < (UNROLLI / 2); jj++)
++                {
++                    SP0egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP0egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                    SP1egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP1egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                    SP2egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP2egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                    SP3egp_jj[jdi * (UNROLLI / 2) + jj] = ((SP3egps_j >> (jj * egps_jshift)) & egps_jmask) * egps_jstride;
++                }
++            }
++#    endif
++        }
++
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            // Accumulate the Coulomb energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    vctot_S = vctot_S + SP0vCoulombV[i];
++                    vctot_S = vctot_S + SP1vCoulombV[i];
++                    vctot_S = vctot_S + SP2vCoulombV[i];
++                    vctot_S = vctot_S + SP3vCoulombV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < nR; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP0vCoulombV[i], vctp[i], SP0egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP1vCoulombV[i], vctp[i], SP1egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP2vCoulombV[i], vctp[i], SP2egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP3vCoulombV[i], vctp[i], SP3egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP0vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP0egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP1vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP1egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP2vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP2egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP3vCoulombV[i], vctp[i * 2], vctp[i * 2 + 1], SP3egp_jj);
++                    }
++                }
++            }
++        }
++
++        if constexpr (c_iLJInteractions != ILJInteractions::None)
++        {
++            // Accumulate the Lennard-Jones energies
++            if constexpr (!useEnergyGroups)
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    Vvdwtot_S = Vvdwtot_S + SP0vLJV[i];
++                    Vvdwtot_S = Vvdwtot_S + SP1vLJV[i];
++                    Vvdwtot_S = Vvdwtot_S + SP2vLJV[i];
++                    Vvdwtot_S = Vvdwtot_S + SP3vLJV[i];
++                }
++            }
++            else
++            {
++                for (int i = 0; i < c_nRLJ; i++)
++                {
++                    if constexpr (kernelLayout == KernelLayout::r4xM)
++                    {
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP0vLJV[i], vvdwtp[i], SP0egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP1vLJV[i], vvdwtp[i], SP1egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP2vLJV[i], vvdwtp[i], SP2egp_jj);
++                        accumulateGroupPairEnergies4xM<kernelLayout>(SP3vLJV[i], vvdwtp[i], SP3egp_jj);
++                    }
++                    else
++                    {
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP0vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP0egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP1vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP1egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP2vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP2egp_jj);
++                        accumulateGroupPairEnergies2xMM<kernelLayout>( SP3vLJV[i], vvdwtp[i * 2], vvdwtp[i * 2 + 1], SP3egp_jj);
++                    }
++                }
++            }
++        }
++
++    } // calculateEnergies
++
++    if constexpr (c_iLJInteractions != ILJInteractions::None)
++    {
++        if constexpr (c_calculateCoulombInteractions)
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * (SP0frCoulombV[i] + SP0frLJV[i]);
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * (SP1frCoulombV[i] + SP1frLJV[i]);
++                SP2fScalarV[i] = SP2rInvSquaredV[i] * (SP2frCoulombV[i] + SP2frLJV[i]);
++                SP3fScalarV[i] = SP3rInvSquaredV[i] * (SP3frCoulombV[i] + SP3frLJV[i]);
++            }
++            for (int i = c_nRLJ; i < nR; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frCoulombV[i];
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frCoulombV[i];
++                SP2fScalarV[i] = SP2rInvSquaredV[i] * SP2frCoulombV[i];
++                SP3fScalarV[i] = SP3rInvSquaredV[i] * SP3frCoulombV[i];
++            }
++        }
++        else
++        {
++            for (int i = 0; i < c_nRLJ; i++)
++            {
++                SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frLJV[i];
++                SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frLJV[i];
++                SP2fScalarV[i] = SP2rInvSquaredV[i] * SP2frLJV[i];
++                SP3fScalarV[i] = SP3rInvSquaredV[i] * SP3frLJV[i];
++            }
++        }
++    }
++    else
++    {
++        for (int i = c_nRLJ; i < nR; i++)
++        {
++            SP0fScalarV[i] = SP0rInvSquaredV[i] * SP0frCoulombV[i];
++            SP1fScalarV[i] = SP1rInvSquaredV[i] * SP1frCoulombV[i];
++            SP2fScalarV[i] = SP2rInvSquaredV[i] * SP2frCoulombV[i];
++            SP3fScalarV[i] = SP3rInvSquaredV[i] * SP3frCoulombV[i];
++        }
++    }
++
++    /* Calculate temporary vectorial force */
++    const auto SP0txV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dxV[i]; });
++    const auto SP1txV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dxV[i]; });
++    const auto SP2txV = genArr<nR>([&](int i) { return SP2fScalarV[i] * SP2dxV[i]; });
++    const auto SP3txV = genArr<nR>([&](int i) { return SP3fScalarV[i] * SP3dxV[i]; });
++    const auto SP0tyV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dyV[i]; });
++    const auto SP1tyV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dyV[i]; });
++    const auto SP2tyV = genArr<nR>([&](int i) { return SP2fScalarV[i] * SP2dyV[i]; });
++    const auto SP3tyV = genArr<nR>([&](int i) { return SP3fScalarV[i] * SP3dyV[i]; });
++    const auto SP0tzV = genArr<nR>([&](int i) { return SP0fScalarV[i] * SP0dzV[i]; });
++    const auto SP1tzV = genArr<nR>([&](int i) { return SP1fScalarV[i] * SP1dzV[i]; });
++    const auto SP2tzV = genArr<nR>([&](int i) { return SP2fScalarV[i] * SP2dzV[i]; });
++    const auto SP3tzV = genArr<nR>([&](int i) { return SP3fScalarV[i] * SP3dzV[i]; });
++
++    /* Increment i atom force */
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP0txV[i]; });
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP1txV[i]; });
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP2txV[i]; });
++    forceIXV = genArr<nR>([&](int i) { return forceIXV[i] + SP3txV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP0tyV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP1tyV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP2tyV[i]; });
++    forceIYV = genArr<nR>([&](int i) { return forceIYV[i] + SP3tyV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP0tzV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP1tzV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP2tzV[i]; });
++    forceIZV = genArr<nR>([&](int i) { return forceIZV[i] + SP3tzV[i]; });
++
++    /* Decrement j atom force */
++    if constexpr (kernelLayout == KernelLayout::r4xM)
++    {
++        store(f + SP0ajx, load<SimdReal>(f + SP0ajx) - (SP0txV[0] + SP0txV[1] + SP0txV[2] + SP0txV[3]));
++        store(f + SP1ajx, load<SimdReal>(f + SP1ajx) - (SP1txV[0] + SP1txV[1] + SP1txV[2] + SP1txV[3]));
++        store(f + SP2ajx, load<SimdReal>(f + SP2ajx) - (SP2txV[0] + SP2txV[1] + SP2txV[2] + SP2txV[3]));
++        store(f + SP3ajx, load<SimdReal>(f + SP3ajx) - (SP3txV[0] + SP3txV[1] + SP3txV[2] + SP3txV[3]));
++        store(f + SP0ajy, load<SimdReal>(f + SP0ajy) - (SP0tyV[0] + SP0tyV[1] + SP0tyV[2] + SP0tyV[3]));
++        store(f + SP1ajy, load<SimdReal>(f + SP1ajy) - (SP1tyV[0] + SP1tyV[1] + SP1tyV[2] + SP1tyV[3]));
++        store(f + SP2ajy, load<SimdReal>(f + SP2ajy) - (SP2tyV[0] + SP2tyV[1] + SP2tyV[2] + SP2tyV[3]));
++        store(f + SP3ajy, load<SimdReal>(f + SP3ajy) - (SP3tyV[0] + SP3tyV[1] + SP3tyV[2] + SP3tyV[3]));
++        store(f + SP0ajz, load<SimdReal>(f + SP0ajz) - (SP0tzV[0] + SP0tzV[1] + SP0tzV[2] + SP0tzV[3]));
++        store(f + SP1ajz, load<SimdReal>(f + SP1ajz) - (SP1tzV[0] + SP1tzV[1] + SP1tzV[2] + SP1tzV[3]));
++        store(f + SP2ajz, load<SimdReal>(f + SP2ajz) - (SP2tzV[0] + SP2tzV[1] + SP2tzV[2] + SP2tzV[3]));
++        store(f + SP3ajz, load<SimdReal>(f + SP3ajz) - (SP3tzV[0] + SP3tzV[1] + SP3tzV[2] + SP3tzV[3]));
++    }
++    else
++    {
++        decr3Hsimd(f + SP0aj * DIM, SP0txV[0] + SP0txV[1], SP0tyV[0] + SP0tyV[1], SP0tzV[0] + SP0tzV[1]);
++        decr3Hsimd(f + SP1aj * DIM, SP1txV[0] + SP1txV[1], SP1tyV[0] + SP1tyV[1], SP1tzV[0] + SP1tzV[1]);
++        decr3Hsimd(f + SP2aj * DIM, SP2txV[0] + SP2txV[1], SP2tyV[0] + SP2tyV[1], SP2tzV[0] + SP2tzV[1]);
++        decr3Hsimd(f + SP3aj * DIM, SP3txV[0] + SP3txV[1], SP3tyV[0] + SP3tyV[1], SP3tzV[0] + SP3tzV[1]);
++    }
++}
++
++#endif // !DOXYGEN
+diff --git a/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_outer.h b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_outer.h
+index de942a32bb..90de4c5444 100644
+--- a/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_outer.h
++++ b/src/gromacs/nbnxm/kernels_simd_2xmm/kernel_outer.h
+@@ -428,10 +428,36 @@
+             }
+             {
+                 constexpr bool c_needToCheckExclusions = false;
+-                for (; (cjind < cjind1); cjind++)
++                for (; (cjind < cjind1-GMX_2XMM_UNROLL_INNER); cjind+=GMX_2XMM_UNROLL_INNER+1)
+                 {
+-#include "kernel_inner.h"
++#if GMX_2XMM_UNROLL_INNER == 3
++#include "kernel_inner_3.h"
++#elif GMX_2XMM_UNROLL_INNER == 2
++#include "kernel_inner_2.h"
++#elif GMX_2XMM_UNROLL_INNER == 1
++#include "kernel_inner_1.h"
++#elif GMX_2XMM_UNROLL_INNER == 0
++#include "kernel_inner_0.h"
++#endif
++                }
++#if GMX_2XMM_UNROLL_INNER > 2
++                if (cjind < cjind1-2)
++                {
++#include "kernel_inner_2.h"
++                } else
++#endif
++#if GMX_2XMM_UNROLL_INNER > 1
++                if (cjind < cjind1-1)
++                {
++#include "kernel_inner_1.h"
++                } else
++#endif
++#if GMX_2XMM_UNROLL_INNER > 0
++                if (cjind < cjind1)
++                {
++#include "kernel_inner_0.h"
+                 }
++#endif
+             }
+         }
+         else if (do_coul)
+@@ -449,10 +475,36 @@
+             }
+             {
+                 constexpr bool c_needToCheckExclusions = false;
+-                for (; (cjind < cjind1); cjind++)
++                for (; (cjind < cjind1-GMX_2XMM_UNROLL_INNER); cjind+=GMX_2XMM_UNROLL_INNER+1)
+                 {
+-#include "kernel_inner.h"
++#if GMX_2XMM_UNROLL_INNER == 3
++#include "kernel_inner_3.h"
++#elif GMX_2XMM_UNROLL_INNER == 2
++#include "kernel_inner_2.h"
++#elif GMX_2XMM_UNROLL_INNER == 1
++#include "kernel_inner_1.h"
++#elif GMX_2XMM_UNROLL_INNER == 0
++#include "kernel_inner_0.h"
++#endif
+                 }
++#if GMX_2XMM_UNROLL_INNER > 2
++                if (cjind < cjind1-2)
++                {
++#include "kernel_inner_2.h"
++                } else
++#endif
++#if GMX_2XMM_UNROLL_INNER > 1
++                if (cjind < cjind1-1)
++                {
++#include "kernel_inner_1.h"
++                } else
++#endif
++#if GMX_2XMM_UNROLL_INNER > 0
++                if (cjind < cjind1)
++                {
++#include "kernel_inner_0.h"
++                }
++#endif
+             }
+         }
+         else
+@@ -470,10 +522,36 @@
+             }
+             {
+                 constexpr bool c_needToCheckExclusions = false;
+-                for (; (cjind < cjind1); cjind++)
++                for (; (cjind < cjind1-GMX_2XMM_UNROLL_INNER); cjind+=GMX_2XMM_UNROLL_INNER+1)
+                 {
+-#include "kernel_inner.h"
++#if GMX_2XMM_UNROLL_INNER == 3
++#include "kernel_inner_3.h"
++#elif GMX_2XMM_UNROLL_INNER == 2
++#include "kernel_inner_2.h"
++#elif GMX_2XMM_UNROLL_INNER == 1
++#include "kernel_inner_1.h"
++#elif GMX_2XMM_UNROLL_INNER == 0
++#include "kernel_inner_0.h"
++#endif
+                 }
++#if GMX_2XMM_UNROLL_INNER > 2
++                if (cjind < cjind1-2)
++                {
++#include "kernel_inner_2.h"
++                } else
++#endif
++#if GMX_2XMM_UNROLL_INNER > 1
++                if (cjind < cjind1-1)
++                {
++#include "kernel_inner_1.h"
++                } else
++#endif
++#if GMX_2XMM_UNROLL_INNER > 0
++                if (cjind < cjind1)
++                {
++#include "kernel_inner_0.h"
++                }
++#endif
+             }
+         }
+         /* Add accumulated i-forces to the force array */
+diff --git a/src/gromacs/nbnxm/kernels_simd_2xmm/make_kernel_inner.py b/src/gromacs/nbnxm/kernels_simd_2xmm/make_kernel_inner.py
+new file mode 100644
+index 0000000000..353a0b932a
+--- /dev/null
++++ b/src/gromacs/nbnxm/kernels_simd_2xmm/make_kernel_inner.py
+@@ -0,0 +1,14 @@
++#!/usr/bin/python3
++
++for unroll in range(4):
++    fin = open ("kernel_inner.h.in", "r")
++    fout = open ("kernel_inner_%d.h" % (unroll), "w")
++    for line in fin.readlines():
++        if "@" in line:
++            for SP in range(unroll+1):
++                fout.write(line.replace("@","%d" %(SP)))
++        else:
++            fout.write(line)
++    fin.close()
++    fout.close()
++
+-- 
+2.31.1
+

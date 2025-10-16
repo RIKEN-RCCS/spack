@@ -1,0 +1,73 @@
+From 8a305ce0cbe406f3f740ef36184cfb0e4746c6ed Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Thu, 29 Aug 2024 14:59:35 +0900
+Subject: [PATCH 8/8] essentialdynamics-2024
+
+fix FCC bug with Ofast
+---
+ src/gromacs/essentialdynamics/edsam.cpp | 40 +++++++++++++------------
+ 1 file changed, 21 insertions(+), 19 deletions(-)
+
+diff --git a/src/gromacs/essentialdynamics/edsam.cpp b/src/gromacs/essentialdynamics/edsam.cpp
+index d1ee51bdc6..3bd7d19b4d 100644
+--- a/src/gromacs/essentialdynamics/edsam.cpp
++++ b/src/gromacs/essentialdynamics/edsam.cpp
+@@ -500,6 +500,26 @@ struct t_do_edfit
+     double** omega;
+     double** om;
+ };
++[[clang::optnone]] static void sub_edfit(matrix R, matrix vh, matrix vk) {
++    /* determine R */
++    for (int c = 0; (c < 3); c++)
++    {
++        for (int r = 0; (r < 3); r++)
++        {
++            R[c][r] = vk[0][r] * vh[0][c] + vk[1][r] * vh[1][c] + vk[2][r] * vh[2][c];
++        }
++    }
++    if (det(R) < 0)
++    {
++        for (int c = 0; (c < 3); c++)
++        {
++            for (int r = 0; (r < 3); r++)
++            {
++                R[c][r] = vk[0][r] * vh[0][c] + vk[1][r] * vh[1][c] - vk[2][r] * vh[2][c];
++            }
++        }
++    }
++}
+ 
+ static void do_edfit(int natoms, rvec* xp, rvec* x, matrix R, t_edpar* edi)
+ {
+@@ -608,27 +628,9 @@ static void do_edfit(int natoms, rvec* xp, rvec* x, matrix R, t_edpar* edi)
+         }
+     }
+ 
+-    /* determine R */
+-    for (c = 0; (c < 3); c++)
+-    {
+-        for (r = 0; (r < 3); r++)
+-        {
+-            R[c][r] = vk[0][r] * vh[0][c] + vk[1][r] * vh[1][c] + vk[2][r] * vh[2][c];
+-        }
+-    }
+-    if (det(R) < 0)
+-    {
+-        for (c = 0; (c < 3); c++)
+-        {
+-            for (r = 0; (r < 3); r++)
+-            {
+-                R[c][r] = vk[0][r] * vh[0][c] + vk[1][r] * vh[1][c] - vk[2][r] * vh[2][c];
+-            }
+-        }
+-    }
++    sub_edfit(R, vh, vk);
+ }
+ 
+-
+ static void rmfit(int nat, rvec* xcoll, const rvec transvec, matrix rotmat)
+ {
+     rvec   vec;
+-- 
+2.39.5
+

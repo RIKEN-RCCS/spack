@@ -1,0 +1,89 @@
+Script started on 2024-03-14 17:07:24+09:00
+sh-4.4$ bash
+[r00046@a25-7109c alamode]$ . /vol0004/apps/oss/spack-v0.21/share/spack/setup-env.sh
+[r00046@a25-7109c alamode]$ umask 0002
+[r00046@a25-7109c alamode]$ umask 0002          
+[r00046@a25-7109c alamode]$  spack install --keep-stage alamode@1.5.0  %fj@4.10.0
+]0;Spack: Processing boost [1/11]]0;Spack: Acquiring lock for boost [1/11][1;34m==>[0m [1mWaiting for[0m [1;32mboost-1.83.0-slvpnrmjs7gntud6rtuym5tdverbvnun[0m
+[1F[J]0;Spack: Preparing boost [1/11][1;32m[+][0m /vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-a64fx/fj-4.10.0/boost-1.83.0-slvpnrmjs7gntud6rtuym5tdverbvnun
+]0;Spack: Processing curl [2/11][1;32m[+][0m /usr (external curl-7.61.1-qsvgylcys5hkzdnl2pdh4blrprxlsp5m)
+]0;Spack: Processing ncurses [3/11][1;32m[+][0m /usr (external ncurses-6.1-a6lc7oq2dlgphtibbpp6x72mqgmscros)
+]0;Spack: Processing zlib-ng [4/11]]0;Spack: Acquiring lock for zlib-ng [4/11][1;34m==>[0m [1mWaiting for[0m [1;32mzlib-ng-2.1.4-m4nsqgrityww4eqljits3svzi4wynus3[0m
+[1F[J]0;Spack: Preparing zlib-ng [4/11][1;32m[+][0m /vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-a64fx/fj-4.10.0/zlib-ng-2.1.4-m4nsqgrityww4eqljits3svzi4wynus3
+]0;Spack: Processing fujitsu-mpi [5/11][1;32m[+][0m /opt/FJSVxtclanga/tcsds-mpi-latest (external fujitsu-mpi-head-gwj7ab744qzdvv3tuiqttkwmdy2uzgob)
+]0;Spack: Processing fujitsu-ssl2 [6/11][1;32m[+][0m /opt/FJSVxtclanga/tcsds-ssl2-latest (external fujitsu-ssl2-head-7eif42hdxt2tixz7cufiyhj62kz3jntb)
+]0;Spack: Processing gmake [7/11][1;32m[+][0m /usr (external gmake-4.2.1-eszqmok6vi6wxcmklx6bqloeidbh25kb)
+]0;Spack: Processing cmake [8/11]]0;Spack: Acquiring lock for cmake [8/11][1;34m==>[0m [1mWaiting for[0m [1;32mcmake-3.27.7-ussgjuqkqbxi5dcv7kbp6bugdcjc5ph6[0m
+[1F[J]0;Spack: Preparing cmake [8/11][1;32m[+][0m /vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-a64fx/fj-4.10.0/cmake-3.27.7-ussgjuqkqbxi5dcv7kbp6bugdcjc5ph6
+]0;Spack: Processing fftw [9/11]]0;Spack: Acquiring lock for fftw [9/11][1;34m==>[0m [1mWaiting for[0m [1;32mfftw-3.3.10-tvu5j7p753ivjutfhcohtnoj2xhhs2k7[0m
+[1F[J]0;Spack: Preparing fftw [9/11][1;32m[+][0m /vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-a64fx/fj-4.10.0/fftw-3.3.10-tvu5j7p753ivjutfhcohtnoj2xhhs2k7
+]0;Spack: Processing spglib [10/11]]0;Spack: Acquiring lock for spglib [10/11][1;34m==>[0m [1mWaiting for[0m [1;32mspglib-1.16.1-szxjzb6esit7yfm5hin4da2fdv3aqmq4[0m
+[1F[J]0;Spack: Preparing spglib [10/11][1;32m[+][0m /vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-a64fx/fj-4.10.0/spglib-1.16.1-szxjzb6esit7yfm5hin4da2fdv3aqmq4
+]0;Spack: Processing alamode [11/11]]0;Spack: Acquiring lock for alamode [11/11][1;34m==>[0m [1mWaiting for[0m [1;32malamode-1.5.0-sjwskix3klzddrsxsnfskkr5oei7qnug[0m
+[1F[J]0;Spack: Preparing alamode [11/11]]0;Spack: Installing alamode [11/11][1;34m==>[0m [1mInstalling[0m [1;32malamode-1.5.0-sjwskix3klzddrsxsnfskkr5oei7qnug[0m [1m[11/11][0m
+[1;34m==>[0m No binary for alamode-1.5.0-sjwskix3klzddrsxsnfskkr5oei7qnug found: installing from source
+[1;34m==>[0m Using cached archive: /vol0004/apps/oss/spack-v0.21/var/spack/cache/_source-cache/archive/b4/b4c198460eba6f28d34894e3a5710998818515104d6e74e5cc331ce31e46e626.tar.bz2
+[1;34m==>[0m Moving resource stage
+	source: /data/rist/r00046/tmp/spack-stage/resource-eigen3-sjwskix3klzddrsxsnfskkr5oei7qnug/spack-src/
+	destination: /data/rist/r00046/tmp/spack-stage/spack-stage-alamode-1.5.0-sjwskix3klzddrsxsnfskkr5oei7qnug/spack-src/eigen3/eigen-3.4.0
+[1;34m==>[0m No patches needed for alamode
+self.stage.source_path
+/data/rist/r00046/tmp/spack-stage/spack-stage-alamode-1.5.0-sjwskix3klzddrsxsnfskkr5oei7qnug/spack-src
+[1;34m==>[0m alamode: Executing phase: 'cmake'
+[1;34m==>[0m alamode: Executing phase: 'build'
+[1;34m==>[0m alamode: Executing phase: 'install'
+[1;34m==>[0m alamode: Successfully installed alamode-1.5.0-sjwskix3klzddrsxsnfskkr5oei7qnug
+  Stage: 1m 42.16s.  Cmake: 36.21s.  Build: 3m 4.00s.  Install: 0.24s.  Post-install: 0.97s.  Total: 5m 26.61s
+[1;32m[+][0m /vol0004/apps/oss/spack-v0.21/opt/spack/linux-rhel8-a64fx/fj-4.10.0/alamode-1.5.0-sjwskix3klzddrsxsnfskkr5oei7qnug
+[r00046@a25-7109c alamode]$ spack find alamode
+-- [0;35mlinux-rhel8-a64fx[0m / [0;32mfj@4.10.0[0m --------------------------------
+alamode[0;36m@1.3.0[0m  alamode[0;36m@1.4.2[0m  alamode[0;36m@1.5.0[0m
+[1;34m==>[0m 3 installed packages
+[r00046@a25-7109c alamode]$ spack find alamode [1@ [1@-[1@l[1@x[1@d
+-- [0;35mlinux-rhel8-a64fx[0m / [0;32mfj@4.10.0[0m --------------------------------
+[0;90mc2lqhfb[0m alamode[0;36m@1.3.0[0m
+[0;90mslvpnrm[0m     boost[0;36m@1.83.0[0m
+[0;90mussgjuq[0m     cmake[0;36m@3.27.7[0m
+[0;90mqsvgylc[0m         curl[0;36m@7.61.1[0m
+[0;90ma6lc7oq[0m         ncurses[0;36m@6.1[0m
+[0;90mm4nsqgr[0m         zlib-ng[0;36m@2.1.4[0m
+[0;90mtvu5j7p[0m     fftw[0;36m@3.3.10[0m
+[0;90mw33oejh[0m         gnuconfig[0;36m@2022-09-17[0m
+[0;90mgwj7ab7[0m     fujitsu-mpi[0;36m@head[0m
+[0;90m7eif42h[0m     fujitsu-ssl2[0;36m@head[0m
+[0;90meszqmok[0m     gmake[0;36m@4.2.1[0m
+[0;90mszxjzb6[0m     spglib[0;36m@1.16.1[0m
+
+[0;90m7br3p57[0m alamode[0;36m@1.4.2[0m
+[0;90mslvpnrm[0m     boost[0;36m@1.83.0[0m
+[0;90mussgjuq[0m     cmake[0;36m@3.27.7[0m
+[0;90mqsvgylc[0m         curl[0;36m@7.61.1[0m
+[0;90ma6lc7oq[0m         ncurses[0;36m@6.1[0m
+[0;90mm4nsqgr[0m         zlib-ng[0;36m@2.1.4[0m
+[0;90mtvu5j7p[0m     fftw[0;36m@3.3.10[0m
+[0;90mw33oejh[0m         gnuconfig[0;36m@2022-09-17[0m
+[0;90mgwj7ab7[0m     fujitsu-mpi[0;36m@head[0m
+[0;90m7eif42h[0m     fujitsu-ssl2[0;36m@head[0m
+[0;90meszqmok[0m     gmake[0;36m@4.2.1[0m
+[0;90mszxjzb6[0m     spglib[0;36m@1.16.1[0m
+
+[0;90msjwskix[0m alamode[0;36m@1.5.0[0m
+[0;90mslvpnrm[0m     boost[0;36m@1.83.0[0m
+[0;90mussgjuq[0m     cmake[0;36m@3.27.7[0m
+[0;90mqsvgylc[0m         curl[0;36m@7.61.1[0m
+[0;90ma6lc7oq[0m         ncurses[0;36m@6.1[0m
+[0;90mm4nsqgr[0m         zlib-ng[0;36m@2.1.4[0m
+[0;90mtvu5j7p[0m     fftw[0;36m@3.3.10[0m
+[0;90mw33oejh[0m         gnuconfig[0;36m@2022-09-17[0m
+[0;90mgwj7ab7[0m     fujitsu-mpi[0;36m@head[0m
+[0;90m7eif42h[0m     fujitsu-ssl2[0;36m@head[0m
+[0;90meszqmok[0m     gmake[0;36m@4.2.1[0m
+[0;90mszxjzb6[0m     spglib[0;36m@1.16.1[0m
+
+[1;34m==>[0m 3 installed packages
+[r00046@a25-7109c alamode]$ exit
+exit
+sh-4.4$ exit
+exit
+
+Script done on 2024-03-14 17:16:46+09:00

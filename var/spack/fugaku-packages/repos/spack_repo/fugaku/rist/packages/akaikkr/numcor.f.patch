@@ -1,0 +1,18 @@
+--- cpa2002v010/source/numcor.f	2021-02-22 21:18:17.000000000 +0900
++++ /home/rist-v/u02540/Archive/AkaiKKR/numcor.f	2022-01-19 16:39:44.000000000 +0900
+@@ -37,6 +37,15 @@ c
+       read(13,'(a)')a
+       if(a(1:5) .eq. 'Linux') then
+ c     --- assume the system is LINUX
++      if(index(a,'aarch64') .gt. 0)then
++c     --- the system seems fx700 or fx1000: available numcor=48-2
++c         is assumed
++      numcor=48-2
++      close(13)
++      command='rm '//tmpfil
++      istat=system(command)
++      return
++      endif
+       command='nproc --all>'//tmpfil
+       istat=system(command)
+       close(13)

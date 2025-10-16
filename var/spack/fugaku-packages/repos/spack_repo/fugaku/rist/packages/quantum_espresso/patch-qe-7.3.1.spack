@@ -1,0 +1,178 @@
+diff -ru a/EPW/src/low_lvl.f90 b/EPW/src/low_lvl.f90
+--- a/EPW/src/low_lvl.f90	2024-02-29 19:18:05.000000000 +0900
++++ b/EPW/src/low_lvl.f90	2025-02-16 22:52:34.000000000 +0900
+@@ -736,10 +736,10 @@
+     !!
+     LOGICAL :: ifxst
+     !! Does the file exists
+-#if defined(__PGI) || defined(__CRAY) || defined(__XLF) || defined(__FLANG)
++!!#if defined(__PGI) || defined(__CRAY) || defined(__XLF) || defined(__FLANG)
+     INTEGER, EXTERNAL :: getpid
+     !! PID of the process
+-#endif
++!!#endif
+     INTEGER :: pid
+     !! PID of the process
+     !
+diff -ru a/external/wannier90/make.inc b/external/wannier90/make.inc
+--- a/external/wannier90/make.inc	2024-03-19 01:27:57.000000000 +0900
++++ b/external/wannier90/make.inc	2025-02-17 05:15:45.000000000 +0900
+@@ -2,10 +2,10 @@
+ # WANNIER90 	
+ #=======================================
+ 
+-TOPDIR = /data/pdelugas/qe_packaging/qe-7.3.1
++TOPDIR = /data/rist/r00017/work/qe-7.3.1
+ 
+-F90=mpif90
+-FCOPTS=$(FFLAGS) -nomodule 
+-LDOPTS= 
++F90=mpifrtpx
++FCOPTS=$(FFLAGS)  
++LDOPTS=-Kfast,parallel,openmp,SVE -Knofp_relaxed
+ 
+-LIBS =    -lmkl_intel_lp64  -lmkl_sequential -lmkl_core 
++LIBS = -SSL2MPI -SSL2 -SSL2BLAMP -SSL2MPI -SSL2 -SSL2BLAMP 
+diff -ru a/include/configure.h b/include/configure.h
+--- a/include/configure.h	2024-03-19 01:23:21.000000000 +0900
++++ b/include/configure.h	2025-02-16 23:09:00.000000000 +0900
+@@ -14,34 +14,34 @@
+ #define  __HAVE_CONFIG_INFO
+ 
+ #define   __CONF_HOST           "@host@"
+-#define   __CONF_ARCH           "x86_64"
++#define   __CONF_ARCH           ""
+ 
+-#define   __CONF_CC             "icc"
+-#define   __CONF_CFLAGS         "-O3"
+-#define   __CONF_DFLAGS         " -D__DFTI -D__MPI -D__SCALAPACK"
++#define   __CONF_CC             "fccpx"
++#define   __CONF_CFLAGS         "-Kfast,parallel,openmp,SVE -Knofp_relaxed"
++#define   __CONF_DFLAGS         "-D__FFTW3 -D__SCALAPACK -D__MPI -D_OPENMP -Duse_beef"
+ #define   __CONF_CPP            "cpp"
+-#define   __CONF_CPPFLAGS       "-P -traditional -Uvector"
++#define   __CONF_CPPFLAGS       "-traditional"
+ 
+-#define   __CONF_F90            "ifort"
+-#define   __CONF_MPIF90         "mpif90"
+-#define   __CONF_F90FLAGS       "$(FFLAGS) -nomodule"
++#define   __CONF_F90            "frtpx"
++#define   __CONF_MPIF90         "mpifrtpx"
++#define   __CONF_F90FLAGS       "$(FFLAGS) "
+ #define   __CONF_F77            "@f77@"
+-#define   __CONF_FFLAGS         "-O2 -assume byterecl -g -traceback"
+-#define   __CONF_FFLAGS_NOOPT   "-O0 -assume byterecl -g -traceback"
+-#define   __CONF_PRE_FDFLAGS    "-fpp -allow nofpp_comments "
++#define   __CONF_FFLAGS         "-Kfast,parallel,openmp,SVE -Knofp_relaxed -Nalloc_assign -Nlst=t -Free"
++#define   __CONF_FFLAGS_NOOPT   "-O0"
++#define   __CONF_PRE_FDFLAGS    ""
+ #define   __CONF_FDFLAGS        "$(DFLAGS) $(MANUAL_DFLAGS)"
+ 
+-#define   __CONF_LD             "mpif90"
+-#define   __CONF_LDFLAGS        " "
++#define   __CONF_LD             "mpifrtpx"
++#define   __CONF_LDFLAGS        "-Kfast,parallel,openmp,SVE -Knofp_relaxed"
+ #define   __CONF_IMOD           "-I"
+ 
+-#define   __CONF_BLAS_LIBS      "  -lmkl_intel_lp64  -lmkl_sequential -lmkl_core"
+-#define   __CONF_LAPACK_LIBS    ""
+-#define   __CONF_FFT_LIBS       ""
++#define   __CONF_BLAS_LIBS      "-SSL2MPI -SSL2 -SSL2BLAMP"
++#define   __CONF_LAPACK_LIBS    "-SSL2MPI -SSL2 -SSL2BLAMP"
++#define   __CONF_FFT_LIBS       "-L/home/apps/r/OSS_CN/fftw-3.3.8/lib64 -lfftw3_mpi -lfftw3_omp -lfftw3_threads -lfftw3"
+ #define   __CONF_MASS_LIBS      ""
+ 
+ #define   __CONF_AR             "ar"
+ #define   __CONF_ARFLAGS        "ruv"
+-#define   __CONF_RANLIB         "ranlib"
++#define   __CONF_RANLIB         "echo"
+ 
+ 
+diff -ru a/install/extlibs_makefile b/install/extlibs_makefile
+--- a/install/extlibs_makefile	2024-03-19 01:02:32.000000000 +0900
++++ b/install/extlibs_makefile	2025-02-16 23:01:57.000000000 +0900
+@@ -64,8 +64,17 @@
+ CUDA_PATH := $(if $(GPU_ARCH),$(CUDA_PATH),no)
+ libcuda_devxlib :
+ #	$(call update_submodule,external,devxlib)
+-	cd $(TOPDIR)/external/devxlib/src; \
+-	ln -fs $(TOPDIR)/make.inc ../; \
++	cd $(TOPDIR)/external/devxlib; \
++	touch make.inc; \
++	$(MAKE) clean; \
++	export F90FLAGS="$(FOX_FLAGS)"; \
++	./configure FC=$(F90) F90=$(F90) CC=$(CC) \
++	--with-cuda=$(CUDA_PATH) \
++	--with-cuda-cc=$(GPU_ARCH) \
++	--with-cuda-runtime=$(CUDA_RUNTIME) \
++	--disable-parallel \
++	--enable-cuda-env-check=no \
++	--host=arm-linux-gnu; \
+ 	$(MAKE) all; \
+ 	touch $(TOPDIR)/install/libcuda_devxlib # do not download and configure again
+ 
+@@ -88,7 +97,7 @@
+         mkdir ../MBD; \
+         cd $(TOPDIR)/external/mbd/src; \
+ 	export FXX=$(F90); export FXXOPT="$(F90FLAGS)"; \
+-	$(MAKE) -f ../../mbd.make; cp *.mod *.a $(TOPDIR)/MBD; cd ../../.. ;fi
++	$(MAKE) -f ../../mbd.make LIBMBD_C_API=0; cp *.mod *.a $(TOPDIR)/MBD; cd ../../.. ;fi
+ 
+ libmbd_clean:
+ 	if test -d ../MBD; then (rm -R -f ../MBD); fi
+diff -ru a/install/make_lapack.inc b/install/make_lapack.inc
+--- a/install/make_lapack.inc	2024-03-19 01:23:21.000000000 +0900
++++ b/install/make_lapack.inc	2025-02-16 23:08:59.000000000 +0900
+@@ -16,12 +16,12 @@
+ #  and handle these quantities appropriately. As a consequence, one 
+ #  should not compile LAPACK with flags such as -ffpe-trap=overflow.
+ #
+-FORTRAN  = ifort
+-OPTS     = -O2 -assume byterecl -g -traceback
++FORTRAN  = frtpx
++OPTS     = -Kfast,parallel,openmp,SVE -Knofp_relaxed -Nalloc_assign -Nlst=t -Free
+ DRVOPTS  = $(OPTS)
+-NOOPT    = -O0 -assume byterecl -g -traceback
+-LOADER   = ifort
+-LOADOPTS =  
++NOOPT    = -O0
++LOADER   = frtpx
++LOADOPTS = -Kfast,parallel,openmp,SVE -Knofp_relaxed
+ #
+ #  Comment out the following line to include deprecated routines to the
+ #  LAPACK library.
+@@ -52,15 +52,15 @@
+ #
+ # CC is the C compiler, normally invoked with options CFLAGS.
+ #
+-CC = icc
+-CFLAGS = -O3
++CC = fccpx
++CFLAGS = -Kfast,parallel,openmp,SVE -Knofp_relaxed
+ #
+ #  The archiver and the flag(s) to use when building archive (library)
+ #  If you system has no ranlib, set RANLIB = echo.
+ #
+ ARCH     = ar
+ ARCHFLAGS= ruv
+-RANLIB   =  ranlib
++RANLIB   =  echo
+ #
+ #  Location of the extended-precision BLAS (XBLAS) Fortran library
+ #  used for building and testing extended-precision routines.  The
+--- a/PHonon/PH/openfilq.f90	2024-02-29 19:18:05.000000000 +0900
++++ b/PHonon/PH/openfilq.f90	2025-02-16 22:53:36.000000000 +0900
+@@ -204,6 +204,13 @@
+ 
+   IF (((trans.AND.(start_irr/=0.OR.last_irr/=0)).OR.elph).AND..NOT.xmldyn) THEN
+      iudyn = 26
++     IF(elph.AND.(.NOT.trans)) THEN
++         IF(ionode) THEN
++             OPEN (iudyn, file=fildyn, status='unknown')
++             CLOSE(iudyn)
++         ENDIF
++         CALL mp_barrier(world_comm)
++     ENDIF
+      OPEN (unit=iudyn, file=fildyn, status='unknown', err=100, iostat=ios)
+ 100  CALL errore ('openfilq', 'opening file'//fildyn, ABS (ios) )
+      REWIND (iudyn)

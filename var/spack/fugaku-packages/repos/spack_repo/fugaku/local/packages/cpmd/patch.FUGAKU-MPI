@@ -1,0 +1,23 @@
+--- CPMD-4.3/configure/FUGAKU-MPI.org	2024-08-21 11:29:27.000000000 +0900
++++ CPMD-4.3/configure/FUGAKU-MPI	2024-08-21 18:43:53.000000000 +0900
+@@ -7,7 +7,7 @@
+      FC='mpifrtpx'
+      CC='fccpx'
+      LD='mpifrtpx'
+-     CPP='/bin/cpp -P -E -traditional'
++     CPP='/usr/bin/cpp -P -E -traditional'
+      CPPFLAGS='-D__PRIMEHPC -D__HAS_FFT_DEFAULT -D__HPC -D__Linux -D__PARALLEL \
+                -D__HASNT_OMP_COLLAPSE -D__HASNT_OMP_45 -D__HASNT_OMP_SET_NESTED \
+                -D__HAS_LIBXC'
+@@ -25,8 +25,9 @@
+        CFLAGS='-Nclang -g -O0'
+      else
+        FFLAGS='-Kfast,openmp,SVE -X03 -fi -Nlst=t -Kocl -Koptmsg=2 \
+-               -I${LIBDIR}/libxc/include'
++               -I${LIBDIR}/libxc/include \
++               -I${LIBXCDIR}/include'
+        CFLAGS='-Nclang -O'
+      fi
+-     LFLAGS='-Kopenmp,SVE -Nlibomp -SSL2BLAMP -L${LIBDIR}/libxc/lib -lxcf03 -lxc'
++     LFLAGS='-Kopenmp,SVE -Nfjomplib -SSL2BLAMP -L${LIBXCDIR}/lib -lxcf03 -lxc'
+ 

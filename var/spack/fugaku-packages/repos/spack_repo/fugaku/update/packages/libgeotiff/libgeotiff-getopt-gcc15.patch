@@ -1,0 +1,26 @@
+--- a/bin/geotifcp.c	2025-09-09 11:44:56.000000000 +0900
++++ b/bin/geotifcp.c	2025-09-09 14:38:15.000000000 +0900
+@@ -14,6 +14,15 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <ctype.h>
++#if defined(__has_include)
++#  if __has_include(<getopt.h>)
++#    include <getopt.h>
++#  else
++#    include <unistd.h>
++#  endif
++#else
++#  include <unistd.h>
++#endif
+ 
+ /* GeoTIFF overrides */
+ 
+@@ -37,7 +46,6 @@
+ #define	TRUE	1
+ #define	FALSE	0
+ 
+-int getopt();
+ 
+ static  int outtiled = -1;
+ static  uint32_t tilewidth;

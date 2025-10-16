@@ -1,0 +1,86 @@
+diff --git a/src/fm/cp_fm_elpa.F b/src/fm/cp_fm_elpa.F
+index 2e39447976..fc8a41523a 100644
+--- a/src/fm/cp_fm_elpa.F
++++ b/src/fm/cp_fm_elpa.F
+@@ -187,7 +187,10 @@ CONTAINS
+ ! **************************************************************************************************
+    SUBROUTINE finalize_elpa_library()
+ #if defined(__ELPA)
+-      CALL elpa_uninit()
++!      CALL elpa_uninit()
++      USE ISO_C_BINDING, ONLY: C_INT
++      INTEGER(KIND=C_INT)                 :: error_elpa
++      CALL elpa_uninit(error_elpa)
+ #else
+       CPABORT("Finalization of ELPA library requested but not enabled during build")
+ #endif
+@@ -322,6 +325,8 @@ CONTAINS
+ ! **************************************************************************************************
+    SUBROUTINE cp_fm_diag_elpa_base(matrix, eigenvectors, eigenvalues, rdinfo)
+ 
++      USE ISO_C_BINDING, ONLY: C_INT
++      INTEGER(KIND=C_INT)                 :: error_elpa
+       TYPE(cp_fm_type), INTENT(IN)                       :: matrix, eigenvectors
+       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: eigenvalues
+       TYPE(cp_fm_redistribute_info), INTENT(IN)          :: rdinfo
+@@ -471,7 +476,8 @@ CONTAINS
+       ! the full eigenvalues vector is needed
+       ALLOCATE (eval(n))
+ 
+-      elpa_obj => elpa_allocate()
++!      elpa_obj => elpa_allocate()
++      elpa_obj => elpa_allocate(error_elpa)
+ 
+       CALL elpa_obj%set("na", n, success)
+       CPASSERT(success == elpa_ok)
+diff --git a/src/grid/cpu/grid_cpu_collint.h b/src/grid/cpu/grid_cpu_collint.h
+index 08d5e3c792..b338ae79ca 100644
+--- a/src/grid/cpu/grid_cpu_collint.h
++++ b/src/grid/cpu/grid_cpu_collint.h
+@@ -45,19 +45,23 @@ ortho_cx_to_grid_scalar(const int lp, const int cmax, const int i,
+ 
+ #if (GRID_DO_COLLOCATE)
+   // collocate
+-  double reg[4] = {0.0, 0.0, 0.0, 0.0};
+-#pragma omp simd reduction(+ : reg)
++  //double reg[4] = {0.0, 0.0, 0.0, 0.0};
++  double reg0 = 0.0;
++  double reg1 = 0.0;
++  double reg2 = 0.0;
++  double reg3 = 0.0;
++#pragma omp simd reduction(+:reg0, reg1, reg2, reg3)
+   for (int lxp = 0; lxp <= lp; lxp++) {
+     const double p = pol[0][lxp][i + cmax];
+-    reg[0] += cx[lxp * 4 + 0] * p;
+-    reg[1] += cx[lxp * 4 + 1] * p;
+-    reg[2] += cx[lxp * 4 + 2] * p;
+-    reg[3] += cx[lxp * 4 + 3] * p;
++    reg0 += cx[lxp * 4 + 0] * p;
++    reg1 += cx[lxp * 4 + 1] * p;
++    reg2 += cx[lxp * 4 + 2] * p;
++    reg3 += cx[lxp * 4 + 3] * p;
+   }
+-  *grid_0 += reg[0];
+-  *grid_1 += reg[1];
+-  *grid_2 += reg[2];
+-  *grid_3 += reg[3];
++  *grid_0 += reg0;
++  *grid_1 += reg1;
++  *grid_2 += reg2;
++  *grid_3 += reg3;
+ 
+ #else
+   // integrate
+diff --git a/src/grid/cpu/grid_cpu_collocate.c b/src/grid/cpu/grid_cpu_collocate.c
+index 7bca3e495c..0308355959 100644
+--- a/src/grid/cpu/grid_cpu_collocate.c
++++ b/src/grid/cpu/grid_cpu_collocate.c
+@@ -44,7 +44,7 @@ static void write_task_file(
+   char filename[100];
+   snprintf(filename, sizeof(filename), "grid_collocate_%05i.task", my_number);
+ 
+-  const int D = DBL_DECIMAL_DIG;
++  const int D = DECIMAL_DIG;
+   FILE *fp = fopen(filename, "w+");
+   fprintf(fp, "#Grid task v10\n");
+   fprintf(fp, "orthorhombic %i\n", orthorhombic);

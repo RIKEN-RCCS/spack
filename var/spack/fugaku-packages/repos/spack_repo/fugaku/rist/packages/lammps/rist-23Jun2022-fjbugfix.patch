@@ -1,0 +1,69 @@
+diff -urpN a/src/USER-PTM/ptm_deformation_gradient.cpp b/src/USER-PTM/ptm_deformation_gradient.cpp
+--- a/src/PTM/ptm_deformation_gradient.cpp	2023-01-20 14:05:50.000000000 +0900
++++ b/src/PTM/ptm_deformation_gradient.cpp	2023-01-20 14:10:07.000000000 +0900
+@@ -14,17 +14,55 @@ namespace ptm {
+ 
+ void calculate_deformation_gradient(int num_points, const double (*ideal_points)[3], int8_t* mapping, double (*normalized)[3], const double (*penrose)[3], double* F, double* res)
+ {
+-        for (int i = 0;i<3;i++)
+-        {
+-                for (int j = 0;j<3;j++)
+-                {
+-                        double acc = 0.0;
+-                        for (int k = 0;k<num_points;k++)
+-                                acc += penrose[k][j] * normalized[mapping[k]][i];
++//---Modified-by-RIST-20Jan2023-start-
++// To avoid compiler's bugs in Fujitsu C++ clang (<= fj4.8.1)
++//        for (int i = 0;i<3;i++)
++//        {
++//                for (int j = 0;j<3;j++)
++//                {
++//                        double acc = 0.0;
++//                        for (int k = 0;k<num_points;k++)
++//                                acc += penrose[k][j] * normalized[mapping[k]][i];
++//
++//                        F[i*3 + j] = acc;
++//                }
++//        }
++        double acc_[9];
++        acc_[0] = 0.0;
++        acc_[1] = 0.0;
++        acc_[2] = 0.0;
++        acc_[3] = 0.0;
++        acc_[4] = 0.0;
++        acc_[5] = 0.0;
++        acc_[6] = 0.0;
++        acc_[7] = 0.0;
++        acc_[8] = 0.0;
+ 
+-                        F[i*3 + j] = acc;
+-                }
+-        }
++        for (int k=0; k<num_points;k++) {
++	  // i=0
++          acc_[0] += penrose[k][0] * normalized[mapping[k]][0];
++          acc_[1] += penrose[k][1] * normalized[mapping[k]][0];
++          acc_[2] += penrose[k][2] * normalized[mapping[k]][0];
++	  // i=1
++          acc_[3] += penrose[k][0] * normalized[mapping[k]][1];
++          acc_[4] += penrose[k][1] * normalized[mapping[k]][1];
++          acc_[5] += penrose[k][2] * normalized[mapping[k]][1];
++	  // i=2
++          acc_[6] += penrose[k][0] * normalized[mapping[k]][2];
++          acc_[7] += penrose[k][1] * normalized[mapping[k]][2];
++          acc_[8] += penrose[k][2] * normalized[mapping[k]][2];
++	}
++
++        F[0] = acc_[0];
++        F[1] = acc_[1];
++        F[2] = acc_[2];
++        F[3] = acc_[3];
++        F[4] = acc_[4];
++        F[5] = acc_[5];
++        F[6] = acc_[6];
++        F[7] = acc_[7];
++        F[8] = acc_[8];
++//---Modified-by-RIST-20Jan2023-end-
+ 
+         res[0] = 0;
+         res[1] = 0;

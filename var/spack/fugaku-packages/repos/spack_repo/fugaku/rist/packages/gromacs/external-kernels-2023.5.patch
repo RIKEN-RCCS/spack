@@ -1,0 +1,635 @@
+From 13178ea33007bec2d450b8a8c379c6d9c41bb127 Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Mon, 13 Feb 2023 11:04:19 +0900
+Subject: [PATCH 3/8] external-kernels-2023
+
+---
+ CMakeLists.txt                                |   1 +
+ cmake/gmxManageFFTLibraries.cmake             |  54 ++++++++
+ cmake/gmxManageSimdKernelLibraries.cmake      | 130 ++++++++++++++++++
+ src/gromacs/CMakeLists.txt                    |  23 ++++
+ src/gromacs/fft/CMakeLists.txt                |  27 +++-
+ src/gromacs/fft/calcgrid.cpp                  |   2 +
+ src/gromacs/fft/fft.cpp                       |   2 +
+ src/gromacs/fft/fft5d.cpp                     |   8 +-
+ src/gromacs/fft/fft5d.h                       |   6 +-
+ src/gromacs/fft/fft_barrier.cpp               |  45 ++++++
+ src/gromacs/fft/fft_fftpack.cpp               |   2 +
+ src/gromacs/fft/fft_fftw3.cpp                 |   2 +
+ src/gromacs/fft/parallel_3dfft.cpp            |   6 +-
+ .../nbnxm/kernels_simd_2xmm/CMakeLists.txt    |  21 ++-
+ .../nbnxm/kernels_simd_4xm/CMakeLists.txt     |  19 ++-
+ src/gromacs/utility/fatalerror.cpp            |   9 ++
+ .../include/gromacs/utility/fatalerror.h      |   3 +
+ 17 files changed, 336 insertions(+), 24 deletions(-)
+ create mode 100644 cmake/gmxManageSimdKernelLibraries.cmake
+ create mode 100644 src/gromacs/fft/fft_barrier.cpp
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 294258d59d..e917b6137c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -847,6 +847,7 @@ include(gmxManageFFTLibraries)
+ 
+ 
+ include(gmxManageLinearAlgebraLibraries)
++include(gmxManageSimdKernelLibraries)
+ 
+ include(gmxManagePluginSupport)
+ gmx_manage_plugin_support()
+diff --git a/cmake/gmxManageFFTLibraries.cmake b/cmake/gmxManageFFTLibraries.cmake
+index 620f85b519..880e5f88ce 100644
+--- a/cmake/gmxManageFFTLibraries.cmake
++++ b/cmake/gmxManageFFTLibraries.cmake
+@@ -33,6 +33,60 @@
+ 
+ include_guard()
+ 
++set(_library_was_found 0)
++
++# We could consider printing status messages at the beginning and
++# end, which would require caching whether the previous provider
++# was user/MKL/external/internal. It's possible (we do it for
++# FFT), but the number of times the user changes these is pretty
++# low, so let's solve that one in master branch when we have
++# better CMake gear to support it.
++if(GMX_EXTERNAL_FFT OR NOT DEFINED GMX_EXTERNAL_FFT)
++    gmx_check_if_changed(_user_var_changed GMX_FFT_USER)
++    if (NOT DEFINED GMX_EXTERNAL_FFT)
++        set(_user_var_changed TRUE)
++    endif()
++    set(_message_text)
++    # Check for user-specified libraries if external libraries have
++    # been specified (which is the default).
++    if(GMX_FFT_USER)
++        set(_library_was_found 1)
++
++        set(CMAKE_REQUIRED_LIBRARIES ${GMX_FFT_USER})
++        if(_user_var_changed)
++            unset(_FFT_user_works CACHE)
++        endif()
++        message(STATUS "Using user FFT library ${GMX_FFT_USER}")
++    endif()
++
++    if (NOT _library_was_found)
++        message(STATUS "${_message_text}Using GROMACS built-in FFT.")
++    endif()
++endif()
++
++# Default behaviour is to try to use an external library, but fall
++# back on the internal one if none is found.
++set(GMX_EXTERNAL_FFT ${_library_was_found} CACHE BOOL "Use a FFT library that is external to GROMACS if possible (ON), or the internal GROMACS one (OFF)")
++mark_as_advanced(GMX_EXTERNAL_FFT)
++# Default behaviour is to use a library found on the system or in
++# GROMACS. The user must actively set GMX_FFT_USER if they
++# want to specify a library.
++gmx_dependent_cache_variable(
++    GMX_FFT_USER
++    "Use a FFT library found on the system (OFF), or a FFT library supplied by the user (any other value, which is a full path to that FFT library)"
++    FILEPATH "" GMX_EXTERNAL_FFT)
++mark_as_advanced(GMX_FFT_USER)
++
++if(GMX_EXTERNAL_FFT)
++    if (NOT _library_was_found)
++        message(FATAL_ERROR "You have set GMX_EXTERNAL_FFT=ON to instruct GROMACS to use an external FFT library, but no external library could be detected.")
++    endif()
++    # Actually trigger linking.
++    set(SIMD_KERNEL_LIBRARIES ${_libraries_to_link})
++else()
++    # Triggering the compilation of the internal version of the library is handled elsewhere.
++endif()
++
+ # Manage setup of the different FFT libraries we can use in Gromacs.
+ set(PKG_FFT "")
+ set(PKG_FFT_LIBS "")
+diff --git a/cmake/gmxManageSimdKernelLibraries.cmake b/cmake/gmxManageSimdKernelLibraries.cmake
+new file mode 100644
+index 0000000000..47fe3b12df
+--- /dev/null
++++ b/cmake/gmxManageSimdKernelLibraries.cmake
+@@ -0,0 +1,130 @@
++#
++# This file is part of the GROMACS molecular simulation package.
++#
++# Copyright (c) 2013,2014,2016,2020,2021, by the GROMACS development team, led by
++# Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
++# and including many others, as listed in the AUTHORS file in the
++# top-level source directory and at http://www.gromacs.org.
++#
++# GROMACS is free software; you can redistribute it and/or
++# modify it under the terms of the GNU Lesser General Public License
++# as published by the Free Software Foundation; either version 2.1
++# of the License, or (at your option) any later version.
++#
++# GROMACS is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++# Lesser General Public License for more details.
++#
++# You should have received a copy of the GNU Lesser General Public
++# License along with GROMACS; if not, see
++# http://www.gnu.org/licenses, or write to the Free Software Foundation,
++# Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
++#
++# If you want to redistribute modifications to GROMACS, please
++# consider that scientific software is very special. Version
++# control is crucial - bugs must be traceable. We will be happy to
++# consider code for inclusion in the official distribution, but
++# derived work must not be called official GROMACS. Details are found
++# in the README & COPYING files - if they are missing, get the
++# official version at http://www.gromacs.org.
++#
++# To help us fund GROMACS development, we humbly ask that you cite
++# the research papers on the package. Check out http://www.gromacs.org.
++
++# Helper macro for the function below. We treat BLAS and LAPACK the same
++# way, so there's no reason to duplicate the logic for them
++#
++# MESSSAGE_TEXT variable is accumulated while checks for these
++# libraries fail, but the message is only emitted if we are forced to
++# fall back on the internal version.
++#
++# Arguments should be:
++#     name                 "2XMM" or "4XM"
++#     function_in_library  the name of a function to use in a linking test of that library
++macro(manage_simd_kernel_library name)
++    set(_library_was_found 0)
++
++    # We could consider printing status messages at the beginning and
++    # end, which would require caching whether the previous provider
++    # was user/MKL/external/internal. It's possible (we do it for
++    # FFT), but the number of times the user changes these is pretty
++    # low, so let's solve that one in master branch when we have
++    # better CMake gear to support it.
++    if(GMX_EXTERNAL_${name} OR NOT DEFINED GMX_EXTERNAL_${name})
++        gmx_check_if_changed(_user_var_changed GMX_${name}_USER)
++        if (NOT DEFINED GMX_EXTERNAL_${name})
++            set(_user_var_changed TRUE)
++        endif()
++        set(_message_text)
++        # Check for user-specified libraries if external libraries have
++        # been specified (which is the default).
++        if(GMX_${name}_USER)
++            set(_libraries_to_link ${GMX_${name}_USER})
++            set(_library_was_found 1)
++
++            set(CMAKE_REQUIRED_LIBRARIES ${GMX_${name}_USER})
++            if(_user_var_changed)
++                unset(_${name}_user_works CACHE)
++            endif()
++            message(STATUS "Using user ${name} library ${GMX_${name}_USER}")
++        endif()
++
++        if (NOT _library_was_found)
++            message(STATUS "${_message_text}Using GROMACS built-in ${name}.")
++        endif()
++    endif()
++
++    # Default behaviour is to try to use an external library, but fall
++    # back on the internal one if none is found.
++    set(GMX_EXTERNAL_${name} ${_library_was_found} CACHE BOOL "Use a ${name} library that is external to GROMACS if possible (ON), or the internal GROMACS one (OFF)")
++    mark_as_advanced(GMX_EXTERNAL_${name})
++    # Default behaviour is to use a library found on the system or in
++    # GROMACS. The user must actively set GMX_${name}_USER if they
++    # want to specify a library.
++    gmx_dependent_cache_variable(
++        GMX_${name}_USER
++        "Use a ${name} library found on the system (OFF), or a ${name} library supplied by the user (any other value, which is a full path to that ${name} library)"
++        FILEPATH "" GMX_EXTERNAL_${name})
++    mark_as_advanced(GMX_${name}_USER)
++
++    if(GMX_EXTERNAL_${name})
++        if (NOT _library_was_found)
++            message(FATAL_ERROR "You have set GMX_EXTERNAL_${name}=ON to instruct GROMACS to use an external ${name} library, but no external library could be detected.")
++        endif()
++        # Actually trigger linking.
++        list(APPEND SIMD_KERNEL_LIBRARIES ${_libraries_to_link})
++    else()
++        # Triggering the compilation of the internal version of the library is handled elsewhere.
++    endif()
++endmacro()
++
++# Inputs:
++#     GMX_EXTERNAL_2XMM     user input about whether to detect BLAS
++#     GMX_EXTERNAL_4XM      user input about whether to detect BLAS
++#     GMX_2XMM_USER         user input for BLAS libraries to use
++#     GMX_4XM_USER          user input for LAPACK libraries to use
++#
++# This function sets the following cache variables:
++#     GMX_EXTERNAL_2XMM     according to whether external BLAS is being used
++#     GMX_EXTERNAL_4XM      according to whether external LAPACK is being used
++#     GMX_2XMM_USER         off = use a system library;
++#                           any other value = full path to the library to use
++#     GMX_4XM_USER          off = use a system library;
++#                           any other value = full path to the library to use
++#
++# This function sets the following variables in its parent scope:
++#     SIMD_KERNEL_LIBRARIES  will be set as required to add libraries required for linear algebra
++#
++function(gmxManageSimdKernelLibraries)
++    # Probably not necessary to unset, but let's be clear about usage.
++    unset(SIMD_KERNEL_LIBRARIES)
++
++    manage_simd_kernel_library(2XMM)
++    manage_simd_kernel_library(4XM)
++
++    # Propagate the new local value to the parent scope
++    set(SIMD_KERNEL_LIBRARIES "${SIMD_KERNEL_LIBRARIES}" PARENT_SCOPE)
++endfunction()
++
++gmxManageSimdKernelLibraries()
+diff --git a/src/gromacs/CMakeLists.txt b/src/gromacs/CMakeLists.txt
+index 114bfd9834..3de52bdb82 100644
+--- a/src/gromacs/CMakeLists.txt
++++ b/src/gromacs/CMakeLists.txt
+@@ -126,6 +126,19 @@ add_subdirectory(tools)
+ get_property(PROPERTY_SOURCES GLOBAL PROPERTY GMX_LIBGROMACS_SOURCES)
+ list(APPEND LIBGROMACS_SOURCES ${GMXLIB_SOURCES} ${MDLIB_SOURCES} ${PROPERTY_SOURCES})
+ 
++if (GMX_USE_SIMD_KERNELS)
++    if (NOT GMX_EXTERNAL_2XMM)
++        list(APPEND libgromacs_object_library_dependencies simd_2xmm)
++    endif()
++    if (NOT GMX_EXTERNAL_4XM)
++        list(APPEND libgromacs_object_library_dependencies simd_4xm)
++    endif()
++endif()
++
++if (NOT GMX_FFT_USER)
++    list(APPEND libgromacs_object_library_dependencies fft_external)
++endif()
++
+ # This would be the standard way to include thread_mpi, but
+ # we want libgromacs to link the functions directly
+ #if(GMX_THREAD_MPI)
+@@ -231,6 +244,15 @@ foreach(object_library ${libgromacs_object_library_dependencies})
+     # Add the sources from the object libraries to the main library.
+     target_sources(libgromacs PRIVATE $<TARGET_OBJECTS:${object_library}>)
+ endforeach()
++ 
++if (GMX_FFT_USER)
++    add_custom_command(OUTPUT ${FFT_EXTERNAL_OBJS}
++                       COMMAND ar xv ${GMX_FFT_USER} ${FFT_EXTERNAL_OBJS}
++                       COMMENT untarring
++                      )
++    target_sources(libgromacs PRIVATE ${FFT_EXTERNAL_OBJS})
++endif()
++
+ gmx_target_compile_options(libgromacs)
+ target_compile_definitions(libgromacs PRIVATE HAVE_CONFIG_H
+                                               TMPI_EXPORTS
+@@ -337,6 +359,7 @@ target_link_libraries(libgromacs
+                       ${GMX_EXTRA_LIBRARIES}
+                       ${GMX_COMMON_LIBRARIES}
+                       ${FFT_LIBRARIES} ${LINEAR_ALGEBRA_LIBRARIES}
++                      ${SIMD_KERNEL_LIBRARIES}
+                       ${THREAD_LIB} ${GMX_SHARED_LINKER_FLAGS}
+                       ${SYCL_CXX_FLAGS}
+                       ${OpenCL_LIBRARIES}
+diff --git a/src/gromacs/fft/CMakeLists.txt b/src/gromacs/fft/CMakeLists.txt
+index 83c7a5aa16..8dfe4f4a27 100644
+--- a/src/gromacs/fft/CMakeLists.txt
++++ b/src/gromacs/fft/CMakeLists.txt
+@@ -34,7 +34,9 @@
+ # Set up the module library
+ add_library(fft INTERFACE)
+ 
+-gmx_add_libgromacs_sources(
++gmx_add_libgromacs_sources(fft_barrier.cpp)
++
++file(GLOB FFT_SOURCES
+      calcgrid.cpp
+      fft.cpp
+      fft5d.cpp
+@@ -42,15 +44,28 @@ gmx_add_libgromacs_sources(
+      )
+ 
+ if (GMX_FFT_FFTPACK)
+-    gmx_add_libgromacs_sources(
+-        fft_fftpack.cpp
+-        ${CMAKE_SOURCE_DIR}/src/external/fftpack/fftpack.cpp)
++    set(FFT_SOURCES ${FFT_SOURCES} fft_fftpack.cpp ${CMAKE_SOURCE_DIR}/src/external/fftpack/fftpack.cpp)
+ endif()
+ if (GMX_FFT_FFTW3 OR GMX_FFT_ARMPL_FFTW3)
+-    gmx_add_libgromacs_sources(fft_fftw3.cpp)
++    set(FFT_SOURCES ${FFT_SOURCES} fft_fftw3.cpp)
+ endif()
+ if (GMX_FFT_MKL)
+-    gmx_add_libgromacs_sources(fft_mkl.cpp)
++    set(FFT_SOURCES ${FFT_SOURCES} fft_mkl.cpp)
++endif()
++if (GMX_EXTERNAL_FFT)
++    set(FFT_EXTERNAL_OBJS calcgrid.cpp.o fft_fftw3.cpp.o fft.cpp.o fft5d.cpp.o parallel_3dfft.cpp.o PARENT_SCOPE)
++else()
++    add_library(fft_external STATIC ${FFT_SOURCES})
++    gmx_target_compile_options(fft_external)
++    target_compile_definitions(fft_external PRIVATE HAVE_CONFIG_H)
++    target_link_libraries(fft_external PRIVATE legacy_api)
++    target_link_libraries(fft_external PRIVATE $<BUILD_INTERFACE:legacy_modules>)
++    target_link_libraries(fft_external PRIVATE math timing utility)
++    set_target_properties(fft_external PROPERTIES 
++                          OUTPUT_NAME "fft${GMX_LIBS_SUFFIX}"
++                          )
++
++    install(TARGETS fft_external DESTINATION ${CMAKE_INSTALL_LIBDIR}/kernels COMPONENT libgromacs)
+ endif()
+ if(GMX_USE_Heffte)
+     gmx_add_libgromacs_sources(gpu_3dfft_heffte.cpp)
+diff --git a/src/gromacs/fft/calcgrid.cpp b/src/gromacs/fft/calcgrid.cpp
+index 4a87508ec3..b03e200de7 100644
+--- a/src/gromacs/fft/calcgrid.cpp
++++ b/src/gromacs/fft/calcgrid.cpp
+@@ -41,6 +41,8 @@
+ 
+ #include "gromacs/utility/fatalerror.h"
+ 
++#define gmx_fatal gmx_fatal2
++
+ /* The grid sizes below are based on timing of a 3D cubic grid in fftw
+  * compiled with SSE using 4 threads in fft5d.c.
+  * A grid size is removed when a larger grid is faster.
+diff --git a/src/gromacs/fft/fft.cpp b/src/gromacs/fft/fft.cpp
+index c43385031d..a62b7c3355 100644
+--- a/src/gromacs/fft/fft.cpp
++++ b/src/gromacs/fft/fft.cpp
+@@ -51,6 +51,8 @@
+  * files like fft_fftw3.c or fft_mkl.c for that.
+  */
+ 
++#define gmx_fatal gmx_fatal2
++
+ #if !GMX_FFT_FFTW3 && !GMX_FFT_ARMPL_FFTW3
+ 
+ struct gmx_many_fft
+diff --git a/src/gromacs/fft/fft5d.cpp b/src/gromacs/fft/fft5d.cpp
+index 876963ce3f..c919609e2b 100644
+--- a/src/gromacs/fft/fft5d.cpp
++++ b/src/gromacs/fft/fft5d.cpp
+@@ -627,10 +627,8 @@ fft5d_plan fft5d_plan_3d(int                NG,
+             /* Make sure that the init routines are only called by one thread at a time and in order
+                (later is only important to not confuse valgrind)
+              */
+-#pragma omp parallel for num_threads(nthreads) schedule(static) ordered
+             for (int t = 0; t < nthreads; t++)
+             {
+-#pragma omp ordered
+                 {
+                     try
+                     {
+@@ -1082,7 +1080,7 @@ static void print_localdata(const t_complex* lin, const char* txt, int s, fft5d_
+     }
+ }
+ 
+-void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
++void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times, barrier_t barrier)
+ {
+     t_complex* lin   = plan->lin;
+     t_complex* lout  = plan->lout;
+@@ -1233,7 +1231,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
+                           tend % pM[s],
+                           tend / pM[s]);
+             }
+-#pragma omp barrier /*barrier required before AllToAll (all input has to be their) - before timing to make timing more acurate*/
++            barrier(); /*barrier required before AllToAll (all input has to be their) - before timing to make timing more acurate*/
+ #ifdef NOGMX
+             if (times != NULL && thread == 0)
+             {
+@@ -1288,7 +1286,7 @@ void fft5d_execute(fft5d_plan plan, int thread, fft5d_time times)
+ #endif
+             }       /*main*/
+         }           /* bPrallelDim */
+-#pragma omp barrier /*both needed for parallel and non-parallel dimension (either have to wait on data from AlltoAll or from last FFT*/
++        barrier(); /*both needed for parallel and non-parallel dimension (either have to wait on data from AlltoAll or from last FFT*/
+ 
+         /* ---------- END SPLIT + TRANSPOSE------------ */
+ 
+diff --git a/src/gromacs/fft/fft5d.h b/src/gromacs/fft/fft5d.h
+index 332fba361d..dd59a04dc4 100644
+--- a/src/gromacs/fft/fft5d.h
++++ b/src/gromacs/fft/fft5d.h
+@@ -123,7 +123,11 @@ struct fft5d_plan_t
+ 
+ typedef struct fft5d_plan_t* fft5d_plan;
+ 
+-void       fft5d_execute(fft5d_plan plan, int thread, fft5d_time times);
++typedef void (*barrier_t)(void);
++
++void fft_barrier (void);
++
++void       fft5d_execute(fft5d_plan plan, int thread, fft5d_time times, barrier_t barrier);
+ fft5d_plan fft5d_plan_3d(int         N,
+                          int         M,
+                          int         K,
+diff --git a/src/gromacs/fft/fft_barrier.cpp b/src/gromacs/fft/fft_barrier.cpp
+new file mode 100644
+index 0000000000..cacec5d70a
+--- /dev/null
++++ b/src/gromacs/fft/fft_barrier.cpp
+@@ -0,0 +1,45 @@
++/*
++ * This file is part of the GROMACS molecular simulation package.
++ *
++ * Copyright (c) 2009-2018, The GROMACS development team.
++ * Copyright (c) 2019,2020, by the GROMACS development team, led by
++ * Mark Abraham, David van der Spoel, Berk Hess, and Erik Lindahl,
++ * and including many others, as listed in the AUTHORS file in the
++ * top-level source directory and at http://www.gromacs.org.
++ *
++ * GROMACS is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public License
++ * as published by the Free Software Foundation; either version 2.1
++ * of the License, or (at your option) any later version.
++ *
++ * GROMACS is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with GROMACS; if not, see
++ * http://www.gnu.org/licenses, or write to the Free Software Foundation,
++ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA.
++ *
++ * If you want to redistribute modifications to GROMACS, please
++ * consider that scientific software is very special. Version
++ * control is crucial - bugs must be traceable. We will be happy to
++ * consider code for inclusion in the official distribution, but
++ * derived work must not be called official GROMACS. Details are found
++ * in the README & COPYING files - if they are missing, get the
++ * official version at http://www.gromacs.org.
++ *
++ * To help us fund GROMACS development, we humbly ask that you cite
++ * the research papers on the package. Check out http://www.gromacs.org.
++ */
++#include "gmxpre.h"
++
++#include "fft5d.h"
++
++#include "config.h"
++
++void fft_barrier()
++{
++#pragma omp barrier
++}
+diff --git a/src/gromacs/fft/fft_fftpack.cpp b/src/gromacs/fft/fft_fftpack.cpp
+index d692d4b90e..720b0a07fa 100644
+--- a/src/gromacs/fft/fft_fftpack.cpp
++++ b/src/gromacs/fft/fft_fftpack.cpp
+@@ -45,6 +45,8 @@
+ #include "gromacs/utility/fatalerror.h"
+ #include "gromacs/utility/real.h"
+ 
++#define gmx_fatal gmx_fatal2
++
+ /*! \internal
+  * \brief
+  * Contents of the FFTPACK fft datatype.
+diff --git a/src/gromacs/fft/fft_fftw3.cpp b/src/gromacs/fft/fft_fftw3.cpp
+index 969df9b2e5..e6023b27c7 100644
+--- a/src/gromacs/fft/fft_fftw3.cpp
++++ b/src/gromacs/fft/fft_fftw3.cpp
+@@ -52,6 +52,8 @@
+ #    define FFTWPREFIX(name) fftwf_##name
+ #endif
+ 
++#define gmx_fatal gmx_fatal2
++
+ /* none of the fftw3 calls, except execute(), are thread-safe, so
+    we need to serialize them with this mutex. */
+ // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+diff --git a/src/gromacs/fft/parallel_3dfft.cpp b/src/gromacs/fft/parallel_3dfft.cpp
+index 8da464d3c7..0734623009 100644
+--- a/src/gromacs/fft/parallel_3dfft.cpp
++++ b/src/gromacs/fft/parallel_3dfft.cpp
+@@ -46,6 +46,8 @@
+ #include "gromacs/utility/gmxmpi.h"
+ #include "gromacs/utility/smalloc.h"
+ 
++#define gmx_fatal gmx_fatal2
++
+ struct gmx_parallel_3dfft
+ {
+     fft5d_plan p1, p2;
+@@ -177,11 +179,11 @@ int gmx_parallel_3dfft_execute(gmx_parallel_3dfft_t   pfft_setup,
+     }
+     if (dir == GMX_FFT_FORWARD || dir == GMX_FFT_REAL_TO_COMPLEX)
+     {
+-        fft5d_execute(pfft_setup->p1, thread, wcycle);
++        fft5d_execute(pfft_setup->p1, thread, wcycle, fft_barrier);
+     }
+     else
+     {
+-        fft5d_execute(pfft_setup->p2, thread, wcycle);
++        fft5d_execute(pfft_setup->p2, thread, wcycle, fft_barrier);
+     }
+     return 0;
+ }
+diff --git a/src/gromacs/nbnxm/kernels_simd_2xmm/CMakeLists.txt b/src/gromacs/nbnxm/kernels_simd_2xmm/CMakeLists.txt
+index d24a0728e0..8d271cf271 100644
+--- a/src/gromacs/nbnxm/kernels_simd_2xmm/CMakeLists.txt
++++ b/src/gromacs/nbnxm/kernels_simd_2xmm/CMakeLists.txt
+@@ -31,8 +31,8 @@
+ # To help us fund GROMACS development, we humbly ask that you cite
+ # the research papers on the package. Check out https://www.gromacs.org.
+ 
+-if (GMX_USE_SIMD_KERNELS)
+-    file(GLOB KERNEL_SOURCES
++if (GMX_USE_SIMD_KERNELS AND NOT GMX_EXTERNAL_2XMM)
++    file(GLOB SIMD_2XMM_SOURCES
+         kernel_ElecEwTwinCut_VdwLJCombGeom_F.cpp
+         kernel_ElecEwTwinCut_VdwLJCombGeom_VF.cpp
+         kernel_ElecEwTwinCut_VdwLJCombGeom_VgrpF.cpp
+@@ -124,7 +124,18 @@ if (GMX_USE_SIMD_KERNELS)
+         kernel_ElecRF_VdwLJ_VF.cpp
+         kernel_ElecRF_VdwLJ_VgrpF.cpp
+         kernel_prune.cpp
+-        )
+-endif()
++    )
++
++    add_library(simd_2xmm STATIC ${SIMD_2XMM_SOURCES})
++    gmx_target_compile_options(simd_2xmm)
++    target_compile_definitions(simd_2xmm PRIVATE HAVE_CONFIG_H)
++    target_link_libraries(simd_2xmm PRIVATE legacy_api)
++    target_link_libraries(simd_2xmm PRIVATE $<BUILD_INTERFACE:legacy_modules>)
++    target_link_libraries(simd_2xmm PRIVATE math pbcutil simd utility)
++    set_target_properties(simd_2xmm PROPERTIES
++                          OUTPUT_NAME "simd_2xmm${GMX_LIBS_SUFFIX}"
++                          )
+ 
+-set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${KERNEL_SOURCES} PARENT_SCOPE)
++    install(TARGETS simd_2xmm DESTINATION ${CMAKE_INSTALL_LIBDIR}/kernels COMPONENT libgromacs)
++
++endif()
+diff --git a/src/gromacs/nbnxm/kernels_simd_4xm/CMakeLists.txt b/src/gromacs/nbnxm/kernels_simd_4xm/CMakeLists.txt
+index d24a0728e0..877a24a278 100644
+--- a/src/gromacs/nbnxm/kernels_simd_4xm/CMakeLists.txt
++++ b/src/gromacs/nbnxm/kernels_simd_4xm/CMakeLists.txt
+@@ -31,8 +31,8 @@
+ # To help us fund GROMACS development, we humbly ask that you cite
+ # the research papers on the package. Check out https://www.gromacs.org.
+ 
+-if (GMX_USE_SIMD_KERNELS)
+-    file(GLOB KERNEL_SOURCES
++if (GMX_USE_SIMD_KERNELS AND NOT GMX_EXTERNAL_4XM)
++    file(GLOB SIMD_4XM_SOURCES
+         kernel_ElecEwTwinCut_VdwLJCombGeom_F.cpp
+         kernel_ElecEwTwinCut_VdwLJCombGeom_VF.cpp
+         kernel_ElecEwTwinCut_VdwLJCombGeom_VgrpF.cpp
+@@ -124,7 +124,16 @@ if (GMX_USE_SIMD_KERNELS)
+         kernel_ElecRF_VdwLJ_VF.cpp
+         kernel_ElecRF_VdwLJ_VgrpF.cpp
+         kernel_prune.cpp
+-        )
+-endif()
++    )
+ 
+-set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${KERNEL_SOURCES} PARENT_SCOPE)
++    add_library(simd_4xm STATIC ${SIMD_4XM_SOURCES})
++    gmx_target_compile_options(simd_4xm)
++    target_compile_definitions(simd_4xm PRIVATE HAVE_CONFIG_H)
++    target_link_libraries(simd_4xm PRIVATE legacy_api)
++    target_link_libraries(simd_4xm PRIVATE $<BUILD_INTERFACE:legacy_modules>)
++    target_link_libraries(simd_4xm PRIVATE math simd utility)
++    set_target_properties(simd_4xm PROPERTIES
++                          OUTPUT_NAME "simd_4xm${GMX_LIBS_SUFFIX}"
++                          )
++    install(TARGETS simd_4xm DESTINATION ${CMAKE_INSTALL_LIBDIR}/kernels COMPONENT libgromacs)
++endif()
+diff --git a/src/gromacs/utility/fatalerror.cpp b/src/gromacs/utility/fatalerror.cpp
+index 0c7e1a5d3b..b9aa8e1c50 100644
+--- a/src/gromacs/utility/fatalerror.cpp
++++ b/src/gromacs/utility/fatalerror.cpp
+@@ -234,6 +234,15 @@ void gmx_fatal(int f_errno, const std::filesystem::path& file, int line, gmx_fmt
+     va_end(ap);
+ }
+ 
++void gmx_fatal2(int f_errno, const std::string file, int line, gmx_fmtstr const char* fmt, ...)
++{
++    std::filesystem::path path = std::filesystem::path(file);
++    va_list ap;
++    va_start(ap, fmt);
++    gmx_fatal_mpi_va(f_errno, path, line, TRUE, FALSE, fmt, ap);
++    va_end(ap);
++}
++
+ void gmx_error_function(const char* key, const std::string& msg, const std::filesystem::path& file, int line)
+ {
+     call_error_handler(key, file, line, msg);
+diff --git a/src/gromacs/utility/include/gromacs/utility/fatalerror.h b/src/gromacs/utility/include/gromacs/utility/fatalerror.h
+index f77f13f1b5..31522c3447 100644
+--- a/src/gromacs/utility/include/gromacs/utility/fatalerror.h
++++ b/src/gromacs/utility/include/gromacs/utility/fatalerror.h
+@@ -185,6 +185,9 @@ enum ExitType
+ [[noreturn]] void
+ gmx_fatal(int fatal_errno, const std::filesystem::path& file, int line, gmx_fmtstr const char* fmt, ...)
+         gmx_format(printf, 4, 5);
++[[noreturn]] void
++gmx_fatal2(int fatal_errno, const std::string file, int line, gmx_fmtstr const char* fmt, ...)
++        gmx_format(printf, 4, 5);
+ /** Helper macro to pass first three parameters to gmx_fatal(). */
+ #define FARGS 0, __FILE__, __LINE__
+ 
+-- 
+2.39.3
+

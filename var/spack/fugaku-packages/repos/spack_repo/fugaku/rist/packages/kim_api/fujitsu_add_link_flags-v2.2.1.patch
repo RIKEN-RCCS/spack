@@ -1,0 +1,15 @@
+diff -urpN a/cmake/Modules/DefaultCompilerFlags.cmake b/cmake/Modules/DefaultCompilerFlags.cmake
+--- a/cmake/Modules/DefaultCompilerFlags.cmake	2021-12-06 10:47:22.000000000 +0900
++++ b/cmake/Modules/DefaultCompilerFlags.cmake	2021-12-06 11:46:57.000000000 +0900
+@@ -120,9 +120,10 @@ unset(_s)
+ string(STRIP "${KIM_API_Fortran_FLAGS} ${CMAKE_Fortran_FLAGS}" _s)
+ set(CMAKE_Fortran_FLAGS_CACHED_VALUE "${CMAKE_Fortran_FLAGS}")  # for cmake's (< 3.13) that don't have $CACHE{} ;; remove once min cmake is > 3.12
+ set(CMAKE_Fortran_FLAGS "${_s}")
++set(CMAKE_Fortran_MODDIR_FLAG -M)
+ unset(_s)
+ #
+-string(STRIP "${KIM_API_EXE_LINKER_FLAGS} ${CMAKE_EXE_LINKER_FLAGS}" _s)
++string(STRIP "--linkfortran ${KIM_API_EXE_LINKER_FLAGS} ${CMAKE_EXE_LINKER_FLAGS}" _s)
+ set(CMAKE_EXE_LINKER_FLAGS_CACHED_VALUE "${CMAKE_EXE_LINKER_FLAGS}")  # for cmake's (< 3.13) that don't have $CACHE{} ;; remove once min cmake is > 3.12
+ set(CMAKE_EXE_LINKER_FLAGS "${_s}")
+ unset(_s)
