@@ -178,6 +178,10 @@ packages:
     require:
     - spec: '@3.4.0 scheduler=fj ldflags=-Knolargepage'
       when: '%fj'
+  darshan-util:
+    require:
+    - spec: '@3.4.0'
+      when: 'arch=linux-rhel8-cascadelake'
 # -------------------------------------------------------------------------
   py-numpy:
     require:
