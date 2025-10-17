@@ -220,6 +220,10 @@ packages:
     require:
     - spec: ^arrow +parquet
       when: '%fj'
+  screen:
+    require:
+    - spec: cflags="-std=gnu11" cppflags="-D_GNU_SOURCE -D_DEFAULT_SOURCE"
+      when: 'arch=linux-rhel8-cascadelake'
 # -------------------------------------------------------------------------
   glib:
     require:
