@@ -75,6 +75,19 @@ def setup_parser(subparser: argparse.ArgumentParser) -> None:
     )
 
 
+import os
+import spack.log
+import uuid
+
+logid = os.environ.get('PJM_JOBID')
+if logid:
+    logid += '_' + os.environ.get('PJM_SUBJOBID')
+else:
+    logid = os.uname()[1] + '_' + str(uuid.uuid1())
+
+spack.log.init_logfile(logid)
+
+
 def load(parser, args):
     env = ev.active_environment()
 
@@ -89,6 +102,8 @@ def load(parser, args):
     specs = [
         spack.cmd.disambiguate_spec(spec, env, first=args.load_first) for spec in constraint_specs
     ]
+
+    spack.log.output_specs(specs)
 
     if not args.shell:
         specs_str = " ".join(str(s) for s in constraint_specs) or "SPECS"
