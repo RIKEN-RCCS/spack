@@ -220,6 +220,10 @@ packages:
     require:
     - spec: ^arrow +parquet
       when: '%fj'
+  rust:
+    require:
+    - spec: '^libgit2%gcc ^libssh2%gcc'
+      when: '%fj'
   screen:
     require:
     - spec: cflags="-std=gnu11" cppflags="-D_GNU_SOURCE -D_DEFAULT_SOURCE"
