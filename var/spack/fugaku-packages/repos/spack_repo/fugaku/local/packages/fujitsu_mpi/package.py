@@ -18,7 +18,7 @@ class FujitsuMpi(Package):
     requires(
         "%fj@4:",
         "%clang@11:",
-        "%gcc@8:",
+        "%gcc",
         policy="one_of",
         msg="currently only supports Fujitsu, Clang, or GCC compilers",
     )

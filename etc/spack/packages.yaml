@@ -282,12 +282,12 @@ packages:
     externals:
     - spec: fujitsu-mpi@4.12.0 %fj@4.12.0 arch=linux-rhel8-a64fx
       prefix: /opt/FJSVxtclanga/tcsds-mpi-1.2.41
-    - spec: fujitsu-mpi@head %gcc@8.5.0 arch=linux-rhel8-a64fx
+    - spec: fujitsu-mpi@head-gcc12 %gcc@12.2.0 arch=linux-rhel8-a64fx
+      prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc12
+    - spec: fujitsu-mpi@head-gcc8 %gcc@8.5.0 arch=linux-rhel8-a64fx
       prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc8
-    # - spec: fujitsu-mpi@head arch=linux-rhel8-a64fx %fj
-    #   prefix: /opt/FJSVxtclanga/tcsds-mpi-latest
-    # - spec: fujitsu-mpi@head arch=linux-rhel8-a64fx %gcc
-    #   prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc12
+    # - spec: fujitsu-mpi@head %gcc@8.5.0 arch=linux-rhel8-a64fx
+    #   prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc8
   rist-fftw:
     externals:
     - spec: rist-fftw@3.3.9-272-g63d6bd70 arch=linux-rhel8-a64fx
