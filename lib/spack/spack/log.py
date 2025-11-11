@@ -6,6 +6,16 @@ import spack.config
 logfile = ''
 
 
+def _format_spec_v021_line(spec):
+    _SPEC_FMT = (
+        "{name}@{version}%{compiler.name}@{compiler.version}{variants} arch={platform}-{os}-{target}"
+    )
+    root = spec.format(_SPEC_FMT)
+    deps_iter = spec.dependencies(deptype=('link', 'run'))
+
+    deps = ["^" + d.format(_SPEC_FMT) for d in deps_iter]
+    return " ".join([root] + deps) if deps else root
+
 import sys
 import time
 
@@ -26,7 +36,7 @@ def init_logfile(logid=None):
     global logfile
 
     logdir = spack.config.get('config:logdir')
-
+    
     if logdir and os.path.isdir(logdir):
 
         d = datetime.now(JST())
@@ -61,7 +71,8 @@ def output_specs(specs):
         try:
             with open(logfile, mode='a') as f:
                 for spec in specs:
-                    f.write(str(spec) + '\n')
+                    # f.write(str(spec) + '\n')
+                    f.write(_format_spec_v021_line(spec) + '\n')
             os.chmod(logfile, 0o644)
         except:
             pass
