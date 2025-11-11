@@ -813,3 +813,15 @@ packages:
     - spec: ffvhc-ace@0.1 arch=linux-rhel8-a64fx
       prefix: /vol0004/apps/opt/FFVHC-ACE/0.1/bin
     buildable: false
+# -------------------------------------------------------------------------
+  abinitmp:
+    externals:
+      - spec: "abinitmp@1-22%fj@4.12.1 arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/opt/abinitmp/20251028-ABINIT-MP-tcsds-1.2.42/Ver1Rev22
+      - spec: "abinitmp@2-4%fj@4.12.1 arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/opt/abinitmp/20251028-ABINIT-MP-tcsds-1.2.42/Ver2Rev4
+      - spec: "abinitmp@2-8%fj@4.12.1 arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/opt/abinitmp/20251028-ABINIT-MP-tcsds-1.2.42/Ver2Rev8
+      - spec: "abinitmp@dd1-2024%fj@4.12.1 arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/opt/abinitmp/20251028-ABINIT-MP-tcsds-1.2.42/V1DD2024
+        buildable: False
