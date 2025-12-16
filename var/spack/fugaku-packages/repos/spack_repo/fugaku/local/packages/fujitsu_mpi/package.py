@@ -50,10 +50,22 @@ class FujitsuMpi(Package):
         return find_libraries(libraries, root=self.prefix, shared=True, recursive=True)
 
     def setup_dependent_package(self, module, dependent_spec):
-        self.spec.mpicc = self.prefix.bin.mpifcc
-        self.spec.mpicxx = self.prefix.bin.mpiFCC
-        self.spec.mpif77 = self.prefix.bin.mpifrt
-        self.spec.mpifc = self.prefix.bin.mpifrt
+        compiler_name = dependent_spec.compiler.name
+        if compiler_name == "gcc":
+            self.spec.mpicc = self.prefix.bin.mpicc
+            self.spec.mpicxx = self.prefix.bin.mpicxx
+            self.spec.mpif77 = self.prefix.bin.mpifort
+            self.spec.mpifc = self.prefix.bin.mpifort
+        elif compiler_name == "fj":
+            self.spec.mpicc = self.prefix.bin.mpifcc
+            self.spec.mpicxx = self.prefix.bin.mpiFCC
+            self.spec.mpif77 = self.prefix.bin.mpifrt
+            self.spec.mpifc = self.prefix.bin.mpifrt
+        else:
+            self.spec.mpicc = self.prefix.bin.mpicc
+            self.spec.mpicxx = self.prefix.bin.mpicxx
+            self.spec.mpif77 = self.prefix.bin.mpifort
+            self.spec.mpifc = self.prefix.bin.mpifort
 
     def setup_dependent_build_environment(self, env, dependent_spec):
         self.setup_run_environment(env)
