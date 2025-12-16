@@ -66,6 +66,7 @@ class Elpa(AutotoolsPackage, CudaPackage, ROCmPackage):
 
     variant("openmp", default=True, description="Activates OpenMP support")
     variant("mpi", default=True, description="Activates MPI support")
+    variant("python", default=False, description="Activates Python wrapper")
 
     patch("fujitsu.patch", when="@2023.05.001%fj")
 
@@ -84,6 +85,11 @@ class Elpa(AutotoolsPackage, CudaPackage, ROCmPackage):
     depends_on("libtool", type="build")
     depends_on("python@3:", type="build")
 
+    depends_on("python@3:", when="+python", type=("build","run"))
+    depends_on("py-numpy", when="+python", type=("build","run"))
+    depends_on("py-cython", when="+python")
+    depends_on("py-mpi4py", when="+python")
+    
 #    with when("@2021.11.01:"):
 #        variant(
 #            "autotune", default=False, description="Enables autotuning for matrix restribution"
@@ -206,6 +212,24 @@ class Elpa(AutotoolsPackage, CudaPackage, ROCmPackage):
                 "SCALAPACK_LDFLAGS={0}".format(spec["scalapack"].libs.joined()),
             ]
 
+        if "+python" in self.spec:
+            options.append("--enable-python")
+            # options += [
+            #     "PYTHON={}".format(spec["python"].command),
+            #     "PYTHON_CONFIG={}".format(spec["python"].prefix.bin.join("python-config")),
+            # ]
+            py = self.spec["python"]
+            options.append("PYTHON={0}".format(py.command))
+            #
+            py_bin = py.prefix.bin
+            if os.path.exists(os.path.join(py_bin, "python3.11-config")):
+                pyconf = os.path.join(py_bin, "python3.11-config")
+            elif os.path.exists(os.path.join(py_bin, "python3-config")):
+                pyconf = os.path.join(py_bin, "python3-config")
+            else:
+                pyconf = os.path.join(py_bin, "python-config")
+            options.append("PYTHON_CONFIG={0}".format(pyconf))
+            
 #        if "+autotune" in self.spec:
 #            options.append("--enable-autotune-redistribute-matrix")
 #            # --enable-autotune-redistribute-matrix requires --enable-scalapack-tests as well
