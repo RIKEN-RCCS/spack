@@ -45,6 +45,8 @@ class PyMpi4py(PythonPackage):
     depends_on("py-cython@0.27:3", when="@master", type="build")
     depends_on("mpi")
 
+    patch("distutils-log-warning2.patch", when="@4.0.1")
+    
     def setup_build_environment(self, env: EnvironmentModifications) -> None:
       if self.spec.satisfies("%fj"):
             env.set("MPICFG", "fujitsu-mpi")

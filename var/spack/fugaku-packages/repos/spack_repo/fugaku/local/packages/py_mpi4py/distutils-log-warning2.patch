@@ -1,0 +1,13 @@
+diff --git a/conf/mpiconfig.py b/conf/mpiconfig.py
+index ce188a5..db9ee04 100644
+--- a/conf/mpiconfig.py
++++ b/conf/mpiconfig.py
+@@ -331,7 +331,7 @@ class Config:
+                     PATH = path + os.path.pathsep + PATH
+                     compiler_info[name] = exe
+                 else:
+-                    self.log.warning("warning: %s='%s' not found", name, cmd)
++                    self.log.warn("warning: %s='%s' not found", name, cmd)
+         #
+         if not self and not compiler_info:
+             for name, candidates in COMPILERS:
