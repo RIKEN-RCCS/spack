@@ -103,6 +103,7 @@ spack:
     #
     - gccs:
       - gcc %gcc@8.5.0
+      - gcc@12.2.0 %gcc@8.5.0
 #      - llvm %gcc@8.5.0 ^binutils@2.37~nls # "because no binutils+ld in /usr"
       - llvm %gcc@8.5.0
 #      - process-in-process@2 %gcc@8.5.0 # cannot be installed
