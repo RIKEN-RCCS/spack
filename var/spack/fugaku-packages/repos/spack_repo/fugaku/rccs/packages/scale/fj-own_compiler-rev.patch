@@ -1,0 +1,51 @@
+diff --git a/sysdep/Makedef.FUGAKU b/sysdep/Makedef.FUGAKU
+index d3a1e40..c6a206f 100644
+--- a/sysdep/Makedef.FUGAKU
++++ b/sysdep/Makedef.FUGAKU
+@@ -7,8 +7,8 @@
+ ##### Fortran setting
+ #FFLAGS is set in Mkinclude. FFLAGS_DEBUG is used if SCALE_DEBUG=T
+ 
+-FC  = mpifrtpx
+-SFC = frtpx
++FC  = mpifrt
++SFC = frt
+ MODDIROPT = -M
+ 
+ FFLAGS_FAST  = -Kfast,parallel,ocl,preex,array_private,noalias=s,mfunc=2 \
+@@ -33,9 +33,9 @@ FFLAGS_DEBUG = -O0                                                       \
+ ##### C setting
+ #CFLAGS is set in Mkinclude. CFLAGS_DEBUG is used if SCALE_DEBUG=T
+ 
+-CC = mpifccpx
++CC = mpifcc
+ 
+-CFLAGS_FAST  = -Kfast,parallel,ocl,preex,array_private,region_extension,restp=all -Ksimd
++CFLAGS_FAST  = -Kfast,ocl,preex -Ksimd
+ CFLAGS_DEBUG = -O0
+ 
+ 
+diff --git a/sysdep/Makedef.FX700 b/sysdep/Makedef.FX700
+index 108c6e3..5c61b54 100644
+--- a/sysdep/Makedef.FX700
++++ b/sysdep/Makedef.FX700
+@@ -7,8 +7,8 @@
+ ##### Fortran setting
+ #FFLAGS is set in Mkinclude. FFLAGS_DEBUG is used if SCALE_DEBUG=T
+ 
+-FC  = mpifrtpx
+-SFC = frtpx
++FC  = mpifrt
++SFC = frt
+ MODDIROPT = -M
+ 
+ FFLAGS_FAST  = -Kfast,parallel,ocl,preex,array_private,noalias=s,mfunc=2 \
+@@ -33,7 +33,7 @@ FFLAGS_DEBUG = -O0                                                       \
+ ##### C setting
+ #CFLAGS is set in Mkinclude. CFLAGS_DEBUG is used if SCALE_DEBUG=T
+ 
+-CC = mpifccpx
++CC = mpifcc
+ 
+ CFLAGS_FAST  = -Kfast,parallel,ocl,preex,array_private,region_extension,restp=all -Ksimd
+ CFLAGS_DEBUG = -O0
