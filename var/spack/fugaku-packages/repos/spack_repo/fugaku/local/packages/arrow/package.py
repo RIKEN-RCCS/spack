@@ -124,7 +124,7 @@ class Arrow(CMakePackage, CudaPackage):
     variant("zlib", default=False, description="Build support for zlib (gzip) compression")
     variant("zstd", default=False, description="Build support for ZSTD compression")
 
-    patch('fj-as-clang.patch', when='@16.1.0 %fj')
+    patch('fj-as-clang.patch', when='@16.1.0: %fj')
     
     root_cmakelists_dir = "cpp"
 
@@ -161,6 +161,9 @@ class Arrow(CMakePackage, CudaPackage):
             # ARROW_USE_SSE was removed in 0.12
             # see https://issues.apache.org/jira/browse/ARROW-3844
             args.append(self.define("ARROW_USE_SSE", "ON"))
+
+        if self.spec.satisfies("%fj"):
+            args.append(self.define("ARROW_MIMALLOC", "OFF"))
 
         args.append(self.define_from_variant("ARROW_COMPUTE", "compute"))
         args.append(self.define_from_variant("ARROW_CUDA", "cuda"))

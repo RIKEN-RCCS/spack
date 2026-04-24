@@ -42,8 +42,8 @@ class PyPyarrow(PythonPackage):
     depends_on("c", type="build")
     depends_on("cxx", type="build")
 
-    patch("fj-as-clang.patch", when="@16.1.0 %fj")
-    patch('fj-udf-listarray.patch', when='@16.1.0 %fj')
+    patch("fj-as-clang.patch", when="@16.1.0: %fj")
+    patch('fj-udf-listarray.patch', when='@16.1.0: %fj')
     
     with default_args(type="build"):
         # CMakeLists.txt
