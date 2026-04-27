@@ -16,7 +16,7 @@ class FujitsuMpi(Package):
     conflicts("%arm")
     conflicts("%cce")
     conflicts("%apple-clang")
-    conflicts("%clang")
+    #conflicts("%clang")
     #conflicts("%gcc")
     conflicts("%intel")
     conflicts("%nag")
@@ -50,22 +50,22 @@ class FujitsuMpi(Package):
         return find_libraries(libraries, root=self.prefix, shared=True, recursive=True)
 
     def setup_dependent_package(self, module, dependent_spec):
-        compiler_name = dependent_spec.compiler.name
-        if compiler_name == "gcc":
+        version = str(self.spec.version)
+        if "gcc" in version:
             self.spec.mpicc = self.prefix.bin.mpicc
             self.spec.mpicxx = self.prefix.bin.mpicxx
             self.spec.mpif77 = self.prefix.bin.mpifort
             self.spec.mpifc = self.prefix.bin.mpifort
-        elif compiler_name == "fj":
+        elif "llvm" in version:
+            self.spec.mpicc = self.prefix.bin.mpiclang
+            self.spec.mpicxx = self.prefix.bin.join("mpiclang++")
+            self.spec.mpif77 = self.prefix.bin.mpiflang
+            self.spec.mpifc = self.prefix.bin.mpiflang
+        else: # This should be fj
             self.spec.mpicc = self.prefix.bin.mpifcc
             self.spec.mpicxx = self.prefix.bin.mpiFCC
             self.spec.mpif77 = self.prefix.bin.mpifrt
             self.spec.mpifc = self.prefix.bin.mpifrt
-        else:
-            self.spec.mpicc = self.prefix.bin.mpicc
-            self.spec.mpicxx = self.prefix.bin.mpicxx
-            self.spec.mpif77 = self.prefix.bin.mpifort
-            self.spec.mpifc = self.prefix.bin.mpifort
 
     def setup_dependent_build_environment(self, env, dependent_spec):
         self.setup_run_environment(env)
@@ -73,7 +73,8 @@ class FujitsuMpi(Package):
     def setup_run_environment(self, env):
         # Because MPI are both compilers and runtimes, we set up the compilers
         # as part of run environment
-        if "gcc" in str(self.spec.version):
+        version = str(self.spec.version)
+        if "gcc" in version:
             env.set("MPICC", self.prefix.bin.mpicc)
             env.set("MPICXX", self.prefix.bin.mpicxx)
             env.set("MPIF77", self.prefix.bin.mpifort)
@@ -81,9 +82,17 @@ class FujitsuMpi(Package):
             env.prepend_path("LD_LIBRARY_PATH", self.prefix.lib)
             env.prepend_path("LD_LIBRARY_PATH", self.prefix.lib64)
             env.set("OPAL_PREFIX", self.prefix)
-        else: # "%fj"
+        elif "llvm" in version:
+            env.set("MPICC", self.prefix.bin.mpiclang)
+            env.set("MPICXX", self.prefix.bin.join("mpiclang++"))
+            env.set("MPIF77", self.prefix.bin.mpiflang)
+            env.set("MPIF90", self.prefix.bin.mpiflang)
+            env.prepend_path("LD_LIBRARY_PATH", self.prefix.lib)
+            env.prepend_path("LD_LIBRARY_PATH", self.prefix.lib64)
+            env.set("OPAL_PREFIX", self.prefix)
+            env.set("MPI_HOME", self.prefix)
+        else: # this should be fj
             env.set("MPICC", self.prefix.bin.mpifcc)
             env.set("MPICXX", self.prefix.bin.mpiFCC)
             env.set("MPIF77", self.prefix.bin.mpifrt)
             env.set("MPIF90", self.prefix.bin.mpifrt)
-            
