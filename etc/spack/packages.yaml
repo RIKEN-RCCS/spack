@@ -10,6 +10,21 @@ packages:
           fortran: /usr/bin/gfortran
   fj:
     externals:
+    - spec: fj@4.12.2
+      prefix: /opt/FJSVxtclanga/tcsds-1.2.43
+      extra_attributes:
+        compilers:
+          c: /opt/FJSVxtclanga/tcsds-1.2.43/bin/fcc
+          cxx: /opt/FJSVxtclanga/tcsds-1.2.43/bin/FCC
+          fortran: /opt/FJSVxtclanga/tcsds-1.2.43/bin/frt
+        environment:
+          set:
+            fcc_ENV: -Nclang
+            FCC_ENV: -Nclang
+          prepend_path:
+            PATH: /opt/FJSVxtclanga/tcsds-1.2.43/bin
+            LD_LIBRARY_PATH: /opt/FJSVxtclanga/tcsds-1.2.43/lib64
+        extra_rpaths: []
     - spec: fj@4.12.1
       prefix: /opt/FJSVxtclanga/tcsds-1.2.42
       extra_attributes:
@@ -85,6 +100,20 @@ packages:
             PATH: /opt/FJSVxtclanga/tcsds-1.2.38/bin
             LD_LIBRARY_PATH: /opt/FJSVxtclanga/tcsds-1.2.38/lib64
         extra_rpaths: []
+  llvm:
+    externals:
+    - spec: llvm@22.1.0+clang+flang~lld~lldb
+      prefix: /vol0004/apps/r/OSS_CN/llvm-22.1.0/own_clangfx/clang-comp
+      extra_attributes:
+        compilers:
+          c: /vol0004/apps/r/OSS_CN/llvm-22.1.0/own_clangfx/clang-comp/bin/clang
+          cxx: /vol0004/apps/r/OSS_CN/llvm-22.1.0/own_clangfx/clang-comp/bin/clang++
+          fortran: /vol0004/apps/r/OSS_CN/llvm-22.1.0/own_clangfx/clang-comp/bin/flang
+        environment:
+          set:
+            LLVM_BASEDIR: /vol0004/apps/r/OSS_CN/llvm-22.1.0/own_clangfx
+          prepend_path:
+            LD_LIBRARY_PATH: /vol0004/apps/r/OSS_CN/llvm-22.1.0/own_clangfx/lib64:/opt/FJSVxtclanga/tcsds-1.2.42/lib64
 # -------------------------------------------------------------------------
     buildable: false
   all:
@@ -311,8 +340,8 @@ packages:
       prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc8
     - spec: fujitsu-mpi@head-gcc12 arch=linux-rhel8-a64fx %gcc@12.2.0
       prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc12
-    # - spec: fujitsu-mpi@head %gcc@8.5.0 arch=linux-rhel8-a64fx
-    #   prefix: /vol0004/apps/oss/mpigcc/fjmpi-gcc8
+    - spec: fujitsu-mpi@head-llvm22 arch=linux-rhel8-a64fx %llvm@22.1.0
+      prefix: /vol0004/apps/r/OSS_CN/llvm-22.1.0/fj-mpi/own_mpi
   rist-fftw:
     externals:
     - spec: rist-fftw@3.3.9-272-g63d6bd70 arch=linux-rhel8-a64fx
@@ -836,4 +865,21 @@ packages:
     externals:
     - spec: "openfold-for-fugaku@1.0%fj@4.12.1 arch=linux-rhel8-a64fx"
       prefix: /vol0004/apps/oss/OpenFold-for-Fugaku/v1.0
+    buildable: false
+# -------------------------------------------------------------------------
+# pmlib: had problems with spack. so far binary packages only. 2024/10/20 mikami
+  pmlib:
+    externals:
+      - spec: "pmlib@9.2-clang arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v9.2/fugaku-clang
+      - spec: "pmlib@9.2-trad arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v9.2/fugaku-trad
+      - spec: "pmlib@10.0-clang arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v10.0/fugaku-clang
+      - spec: "pmlib@10.0-trad arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v10.0/fugaku-trad
+      - spec: "pmlib@10.0-pybind arch=linux-rhel8-a64fx"
+        prefix: /vol0004/apps/oss/pmlib-v10.0/fugaku-pybind
+      # - spec: "pmlib@9.0-clang-precise arch=linux-rhel8-a64fx"
+      #   prefix: /vol0004/apps/oss/pmlib-v9.0/9.0-clang-precise
     buildable: false
