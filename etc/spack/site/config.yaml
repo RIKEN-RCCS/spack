@@ -1,0 +1,14 @@
+config:
+  # With the new installer, this limits the total number of build
+  # jobs across all concurrently built packages.
+  build_jobs: 12
+
+  # The maximum number of concurrent package builds
+  concurrent_packages: 0
+
+  # Allow more time for database lock acquisition on the shared filesystem.
+  db_lock_timeout: 600
+
+  # Set to '' to inhibit logging your 'spack load' history.
+  #logdir: /vol0004/data/applog
+  logdir: ''
