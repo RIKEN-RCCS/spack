@@ -1,0 +1,12 @@
+--- a/numpy/_core/src/multiarray/lowlevel_strided_loops.c.src
++++ b/numpy/_core/src/multiarray/lowlevel_strided_loops.c.src
+@@ -706,7 +706,8 @@
+ 
+ /************* STRIDED CASTING SPECIALIZED FUNCTIONS *************/
+ 
+-#if defined(NPY_HAVE_NEON_FP16)
++/* FujitsuClang cannot lower native _Float16 <-> long double casts. */
++#if defined(NPY_HAVE_NEON_FP16) && !defined(__CLANG_FUJITSU)
+     #define EMULATED_FP16 0
+     #define NATIVE_FP16 1
+     typedef _Float16 _npy_half;

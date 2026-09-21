@@ -109,10 +109,6 @@ packages:
     - spec: '@=3.4.0'
       when: 'arch=linux-rhel8-cascadelake'
 # -------------------------------------------------------------------------
-  py-numpy:
-    require:
-    - spec: '@:2.2.6'
-      when: '%fj'
   py-scipy:
     require:
     - spec: '@:1.8.1'
