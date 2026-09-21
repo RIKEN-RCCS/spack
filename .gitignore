@@ -21,6 +21,8 @@ CLAUDE.md
 !/etc/spack/site/README.md
 !/etc/spack/site/
 
+/var/spack/spack-packages
+
 ###########################
 # Coding agent state
 ###########################
