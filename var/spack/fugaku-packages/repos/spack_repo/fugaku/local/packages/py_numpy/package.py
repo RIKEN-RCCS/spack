@@ -164,7 +164,7 @@ class PyNumpy(PythonPackage):
     patch("fix-atomic-const.patch", when="@2.1.0: %fj")
 
     # Avoid FujitsuClang backend failure for _Float16 / long double casts.
-    patch("fujitsu-emulate-fp16-casts.patch", when="@2.4.6: %fj")
+    patch("fujitsu-emulate-fp16-casts.patch", when="@2.3: %fj")
     
     # Backport bug fix for f2py's define for threading when building with Mingw
     patch(
