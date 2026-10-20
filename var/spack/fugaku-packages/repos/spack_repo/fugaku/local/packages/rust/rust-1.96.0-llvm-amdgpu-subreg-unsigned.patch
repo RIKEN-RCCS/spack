@@ -1,0 +1,11 @@
+--- a/src/llvm-project/llvm/lib/Target/AMDGPU/SIInstrInfo.cpp
++++ b/src/llvm-project/llvm/lib/Target/AMDGPU/SIInstrInfo.cpp
+@@ -3606,7 +3606,7 @@
+     assert(!UseMI.getOperand(0).getSubReg() && "Expected SSA form");
+ 
+     Register DstReg = UseMI.getOperand(0).getReg();
+-    Register UseSubReg = UseMI.getOperand(1).getSubReg();
++    unsigned UseSubReg = UseMI.getOperand(1).getSubReg();
+ 
+     const TargetRegisterClass *DstRC = RI.getRegClassForReg(*MRI, DstReg);
+ 
