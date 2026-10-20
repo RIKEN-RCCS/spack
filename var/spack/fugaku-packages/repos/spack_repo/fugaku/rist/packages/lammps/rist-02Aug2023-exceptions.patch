@@ -1,0 +1,17 @@
+diff --git a/src/error.cpp b/src/error.cpp
+index 53b14e1fcc..c4046bba10 100644
+--- a/src/error.cpp
++++ b/src/error.cpp
+@@ -165,6 +165,11 @@ void Error::all(const std::string &file, int line, const std::string &str)
+   std::string msg = fmt::format("ERROR: {} ({}:{})\n",
+                                 str, truncpath(file), line);
+
++  // [RIST added part start]
++  if (logfile) std::fflush(logfile);
++  if (screen && screen != stdout) std::fflush(screen);
++  // [RIST added part end]
++
+   if (universe->nworlds > 1) {
+     throw LAMMPSAbortException(msg, universe->uworld);
+   }
+

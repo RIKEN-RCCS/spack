@@ -1,0 +1,232 @@
+--- a/util/lbm3d.mpi/lbm3d.f	2023-11-26 20:32:18.000000000 +0900
++++ b/util/lbm3d.mpi/lbm3d.f	2024-01-16 13:06:53.000000000 +0900
+@@ -9,7 +9,7 @@ CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+       IMPLICIT NONE
+ C
+       CHARACTER*30 DATE
+-      DATA DATE     / 'LBM3D:VER.67.03:2023.11.18' /
++      DATA DATE     / 'LBM3D:VER.67.04:2024.01.16' /
+ C
+       CHARACTER* 8 MODE(0:1)
+       DATA MODE     / 'SERIAL  ', 'PARALLEL' /
+@@ -648,6 +648,8 @@ C
+       REAL*8    SIZEAL,SIZE,WORD
+       DATA WORD   / 8.0D-6  /
+ C
++      LERR=0
++C     
+       IERR=0
+       NDOM = 0
+       CALL DDINIT(NPART,IPART)
+@@ -932,81 +934,81 @@ C
+ C C. VARIABLE DEFINED AT GRIDS
+       ALLOCATE(MASK(   0:NG+2,0:NG+2,0:NG+2   ,2 ),STAT=LERR(06))
+       ALLOCATE(F   (   0:NG+2,0:NG+2,0:NG+2,NP,NC),STAT=LERR(07))
+-      ALLOCATE(CDUMP(  0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(07))
+-      ALLOCATE(FDUMP(                       NP   ),STAT=LERR(07))
+-      ALLOCATE(CSTOP(  0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(07))
+-      ALLOCATE(FSTOP(                       NP   ),STAT=LERR(07))
+-      ALLOCATE(TAU (   0:NG+2,0:NG+2,0:NG+2   ,NC),STAT=LERR(08))
++      ALLOCATE(CDUMP(  0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(08))
++      ALLOCATE(FDUMP(                       NP   ),STAT=LERR(09))
++      ALLOCATE(CSTOP(  0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(10))
++      ALLOCATE(FSTOP(                       NP   ),STAT=LERR(11))
++      ALLOCATE(TAU (   0:NG+2,0:NG+2,0:NG+2   ,NC),STAT=LERR(12))
+       IF(IMODEL.EQ.0) THEN
+-      ALLOCATE(SSGS(  0:   1,0:   1,0:   1   ,NC),STAT=LERR(08))
+-      ALLOCATE(DELTA( 0:   1,0:   1,0:   1   ,NC),STAT=LERR(08))
++      ALLOCATE(SSGS(  0:   1,0:   1,0:   1   ,NC),STAT=LERR(13))
++      ALLOCATE(DELTA( 0:   1,0:   1,0:   1   ,NC),STAT=LERR(14))
+       ELSE
+-      ALLOCATE(SSGS(  0:NG+2,0:NG+2,0:NG+2   ,NC),STAT=LERR(08))
+-      ALLOCATE(DELTA( 0:NG+2,0:NG+2,0:NG+2   ,NC),STAT=LERR(08))
++      ALLOCATE(SSGS(  0:NG+2,0:NG+2,0:NG+2   ,NC),STAT=LERR(13))
++      ALLOCATE(DELTA( 0:NG+2,0:NG+2,0:NG+2   ,NC),STAT=LERR(14))
+       ENDIF
+-      ALLOCATE(FWRK(   0:NG+2,0:NG+2,0:NG+2,NP   ),STAT=LERR(09))
+-      ALLOCATE(FWRK2(  0:NG+2,0:NG+2,0:NG+2,NP   ),STAT=LERR(10))
+-      ALLOCATE(V3D ( 4,0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(11))
+-      ALLOCATE(V1  (   0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(12))
+-      ALLOCATE(V2  (   0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(13))
+-      ALLOCATE(V3  (   0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(14))
+-      ALLOCATE(V4  (   0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(15))
++      ALLOCATE(FWRK(   0:NG+2,0:NG+2,0:NG+2,NP   ),STAT=LERR(15))
++      ALLOCATE(FWRK2(  0:NG+2,0:NG+2,0:NG+2,NP   ),STAT=LERR(16))
++      ALLOCATE(V3D ( 4,0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(17))
++      ALLOCATE(V1  (   0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(18))
++      ALLOCATE(V2  (   0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(19))
++      ALLOCATE(V3  (   0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(20))
++      ALLOCATE(V4  (   0:NG+2,0:NG+2,0:NG+2      ),STAT=LERR(21))
+       NG3=(NG+3)*(NG+3)*(NG+3)
+-      ALLOCATE(WRK1(NG3),STAT=LERR(16))
+-      ALLOCATE(WRK2(NG3),STAT=LERR(17))
+-      ALLOCATE(WRK3(NG3),STAT=LERR(18))
+-      ALLOCATE(WRK4(NG3),STAT=LERR(19))
++      ALLOCATE(WRK1(NG3),STAT=LERR(22))
++      ALLOCATE(WRK2(NG3),STAT=LERR(23))
++      ALLOCATE(WRK3(NG3),STAT=LERR(24))
++      ALLOCATE(WRK4(NG3),STAT=LERR(25))
+       SIZE =        (NP+2)*NG3*NC*WORD
+       SIZE = SIZE + (NP+8)*NG3   *WORD
+       SIZEAL = SIZEAL+SIZE
+       WRITE(IUT6,'(A12,F8.2," MB ALLOCATED")') " GRIDS     :",SIZE
+ C
+ C D. VARIABLE FOR BOUNDARY 
+-      ALLOCATE(LWORK1(0:NG+2,0:NG+2,0:NG+2)   ,STAT=LERR(20))
+-      ALLOCATE(LWORK2(  NG+1,  NG+1,  NG+1)   ,STAT=LERR(21))
+-      ALLOCATE(LWORK(NP,NG+1,NG+1,NG+1)       ,STAT=LERR(22))
+-      ALLOCATE(QWORK(NP,NG+1,NG+1,NG+1)       ,STAT=LERR(22))
++      ALLOCATE(LWORK1(0:NG+2,0:NG+2,0:NG+2)   ,STAT=LERR(26))
++      ALLOCATE(LWORK2(  NG+1,  NG+1,  NG+1)   ,STAT=LERR(27))
++      ALLOCATE(LWORK(NP,NG+1,NG+1,NG+1)       ,STAT=LERR(28))
++      ALLOCATE(QWORK(NP,NG+1,NG+1,NG+1)       ,STAT=LERR(29))
+       IF(NP.EQ.15) THEN
+           M1CELL=7
+       ELSE IF(NP.EQ.27) THEN
+           M1CELL=13
+       ENDIF
+       IF(JGEOM.EQ.0) THEN
+-          ALLOCATE(XP(1)                     ,STAT=LERR(23))
+-          ALLOCATE(YP(1)                     ,STAT=LERR(24))
+-          ALLOCATE(ZP(1)                     ,STAT=LERR(25))
+-          ALLOCATE(XTRG(1,1)                 ,STAT=LERR(26))
+-          ALLOCATE(YTRG(1,1)                 ,STAT=LERR(27))
+-          ALLOCATE(ZTRG(1,1)                 ,STAT=LERR(28))
+-          ALLOCATE(QCELL(M1CELL,0:1,0:1,0:1) ,STAT=LERR(29))
+-          ALLOCATE(LSURF(1,1,1)              ,STAT=LERR(31))
+-          ALLOCATE(LPSURF(1,1)               ,STAT=LERR(32))
+-          ALLOCATE(CSURF(1,1,1)              ,STAT=LERR(33))
+-          ALLOCATE(RHOSRF(1)                 ,STAT=LERR(34))
++          ALLOCATE(XP(1)                     ,STAT=LERR(30))
++          ALLOCATE(YP(1)                     ,STAT=LERR(31))
++          ALLOCATE(ZP(1)                     ,STAT=LERR(32))
++          ALLOCATE(XTRG(1,1)                 ,STAT=LERR(33))
++          ALLOCATE(YTRG(1,1)                 ,STAT=LERR(34))
++          ALLOCATE(ZTRG(1,1)                 ,STAT=LERR(35))
++          ALLOCATE(QCELL(M1CELL,0:1,0:1,0:1) ,STAT=LERR(36))
++          ALLOCATE(LSURF(1,1,1)              ,STAT=LERR(37))
++          ALLOCATE(LPSURF(1,1)               ,STAT=LERR(38))
++          ALLOCATE(CSURF(1,1,1)              ,STAT=LERR(39))
++          ALLOCATE(RHOSRF(1)                 ,STAT=LERR(40))
+       ELSE IF(JGEOM.EQ.1) THEN
+-          ALLOCATE(XP(MPG)                            ,STAT=LERR(23))
+-          ALLOCATE(YP(MPG)                            ,STAT=LERR(24))
+-          ALLOCATE(ZP(MPG)                            ,STAT=LERR(25))
+-          ALLOCATE(XTRG(1,1)                          ,STAT=LERR(26))
+-          ALLOCATE(YTRG(1,1)                          ,STAT=LERR(27))
+-          ALLOCATE(ZTRG(1,1)                          ,STAT=LERR(28))
+-          ALLOCATE(QCELL (M1CELL,0:NG+1,0:NG+1,0:NG+1),STAT=LERR(29))
+-          ALLOCATE(LSURF(1,1,1)                       ,STAT=LERR(31))
+-          ALLOCATE(LPSURF(1,1)                        ,STAT=LERR(32))
+-          ALLOCATE(CSURF(1,1,1)                       ,STAT=LERR(33))
+-          ALLOCATE(RHOSRF(1)                          ,STAT=LERR(34))
++          ALLOCATE(XP(MPG)                            ,STAT=LERR(30))
++          ALLOCATE(YP(MPG)                            ,STAT=LERR(31))
++          ALLOCATE(ZP(MPG)                            ,STAT=LERR(32))
++          ALLOCATE(XTRG(1,1)                          ,STAT=LERR(33))
++          ALLOCATE(YTRG(1,1)                          ,STAT=LERR(34))
++          ALLOCATE(ZTRG(1,1)                          ,STAT=LERR(35))
++          ALLOCATE(QCELL (M1CELL,0:NG+1,0:NG+1,0:NG+1),STAT=LERR(36))
++          ALLOCATE(LSURF(1,1,1)                       ,STAT=LERR(37))
++          ALLOCATE(LPSURF(1,1)                        ,STAT=LERR(38))
++          ALLOCATE(CSURF(1,1,1)                       ,STAT=LERR(39))
++          ALLOCATE(RHOSRF(1)                          ,STAT=LERR(40))
+       ELSE IF(JGEOM.EQ.2) THEN
+-          ALLOCATE(XP(1)                              ,STAT=LERR(23))
+-          ALLOCATE(YP(1)                              ,STAT=LERR(24))
+-          ALLOCATE(ZP(1)                              ,STAT=LERR(25))
+-          ALLOCATE(XTRG(MPG,3)                        ,STAT=LERR(26))
+-          ALLOCATE(YTRG(MPG,3)                        ,STAT=LERR(27))
+-          ALLOCATE(ZTRG(MPG,3)                        ,STAT=LERR(28))
+-          ALLOCATE(QCELL (M1CELL,0:NG+1,0:NG+1,0:NG+1),STAT=LERR(29))
+-          ALLOCATE(LSURF(4,MPG,2)                     ,STAT=LERR(31))
+-          ALLOCATE(LPSURF(MPG,2)                      ,STAT=LERR(32))
+-          ALLOCATE(CSURF(3,MPG,2)                     ,STAT=LERR(33))
+-          ALLOCATE(RHOSRF(MPG)                        ,STAT=LERR(34))
++          ALLOCATE(XP(1)                              ,STAT=LERR(30))
++          ALLOCATE(YP(1)                              ,STAT=LERR(31))
++          ALLOCATE(ZP(1)                              ,STAT=LERR(32))
++          ALLOCATE(XTRG(MPG,3)                        ,STAT=LERR(33))
++          ALLOCATE(YTRG(MPG,3)                        ,STAT=LERR(34))
++          ALLOCATE(ZTRG(MPG,3)                        ,STAT=LERR(35))
++          ALLOCATE(QCELL (M1CELL,0:NG+1,0:NG+1,0:NG+1),STAT=LERR(36))
++          ALLOCATE(LSURF(4,MPG,2)                     ,STAT=LERR(37))
++          ALLOCATE(LPSURF(MPG,2)                      ,STAT=LERR(38))
++          ALLOCATE(CSURF(3,MPG,2)                     ,STAT=LERR(39))
++          ALLOCATE(RHOSRF(MPG)                        ,STAT=LERR(40))
+       ENDIF
+       SIZE =        (2+NP)*NG3*WORD
+       SIZE = SIZE +     12*MPG*WORD
+@@ -1015,19 +1017,19 @@ C D. VARIABLE FOR BOUNDARY
+       WRITE(IUT6,'(A12,F8.2," MB ALLOCATED")') " BOUN.     :",SIZE
+ C
+ C D. VARIABLES FOR INTER CUBE COMMUNICATION
+-      ALLOCATE(NBC  (                  NC),STAT=LERR(35))
+-      ALLOCATE(LBC  (5,MBC            ,NC),STAT=LERR(36))
+-      ALLOCATE(RCMAX(                2,NC),STAT=LERR(36))
+-      ALLOCATE(VCMAX(                2,NC),STAT=LERR(36))
+-      ALLOCATE(FBC1 (NP,NG+1,NG+1,MBC1,NC),STAT=LERR(37))
+-      ALLOCATE(FBC2 (NP,NG+1,     MBC2,NC),STAT=LERR(38))
+-      ALLOCATE(FBC3 (NP,          MBC3,NC),STAT=LERR(39))
+-      ALLOCATE(FBC1W(NP,NG+1,NG+1,MBC1,NC),STAT=LERR(40))
+-      ALLOCATE(FBC2W(NP,NG+1,     MBC2,NC),STAT=LERR(41))
+-      ALLOCATE(FBC3W(NP,          MBC3,NC),STAT=LERR(42))
+-      ALLOCATE(FBC1D(NP,NG+1,NG+1,MBC1,NC),STAT=LERR(40))
+-      ALLOCATE(FBC2D(NP,NG+1,     MBC2,NC),STAT=LERR(41))
+-      ALLOCATE(FBC3D(NP,          MBC3,NC),STAT=LERR(42))
++      ALLOCATE(NBC  (                  NC),STAT=LERR(41))
++      ALLOCATE(LBC  (5,MBC            ,NC),STAT=LERR(42))
++      ALLOCATE(RCMAX(                2,NC),STAT=LERR(43))
++      ALLOCATE(VCMAX(                2,NC),STAT=LERR(44))
++      ALLOCATE(FBC1 (NP,NG+1,NG+1,MBC1,NC),STAT=LERR(45))
++      ALLOCATE(FBC2 (NP,NG+1,     MBC2,NC),STAT=LERR(46))
++      ALLOCATE(FBC3 (NP,          MBC3,NC),STAT=LERR(47))
++      ALLOCATE(FBC1W(NP,NG+1,NG+1,MBC1,NC),STAT=LERR(48))
++      ALLOCATE(FBC2W(NP,NG+1,     MBC2,NC),STAT=LERR(49))
++      ALLOCATE(FBC3W(NP,          MBC3,NC),STAT=LERR(50))
++      ALLOCATE(FBC1D(NP,NG+1,NG+1,MBC1,NC),STAT=LERR(51))
++      ALLOCATE(FBC2D(NP,NG+1,     MBC2,NC),STAT=LERR(52))
++      ALLOCATE(FBC3D(NP,          MBC3,NC),STAT=LERR(53))
+       SIZE = (1+5*MBC)*NC*0.5*WORD
+       SIZE = SIZE + 2*NP*(NG+1)*(NG+1)*MBC1*NC*0.2*WORD
+       SIZE = SIZE + 2*NP*(NG+1)       *MBC2*NC*0.2*WORD
+@@ -1037,19 +1039,19 @@ C D. VARIABLES FOR INTER CUBE COMMUNICAT
+ C
+ C E. VARIABLES FOR FLUID FORCES
+ C
+-      ALLOCATE(FXC  (    NC),STAT=LERR(43))
+-      ALLOCATE(FYC  (    NC),STAT=LERR(44))
+-      ALLOCATE(FZC  (    NC),STAT=LERR(45))
+-      ALLOCATE(FXWRK(MPBOUN),STAT=LERR(46))
+-      ALLOCATE(FYWRK(MPBOUN),STAT=LERR(47))
+-      ALLOCATE(FZWRK(MPBOUN),STAT=LERR(48))
++      ALLOCATE(FXC  (    NC),STAT=LERR(54))
++      ALLOCATE(FYC  (    NC),STAT=LERR(55))
++      ALLOCATE(FZC  (    NC),STAT=LERR(56))
++      ALLOCATE(FXWRK(MPBOUN),STAT=LERR(57))
++      ALLOCATE(FYWRK(MPBOUN),STAT=LERR(58))
++      ALLOCATE(FZWRK(MPBOUN),STAT=LERR(59))
+       DO IC=1,NC
+           FXC(IC)=0.0D0
+           FYC(IC)=0.0D0
+           FZC(IC)=0.0D0
+       ENDDO
+ C
+-      CALL ERRCHK(IUT6,IPART,48,LERR,IERR)
++      CALL ERRCHK(IUT6,IPART,59,LERR,IERR)
+       IF(IERR.NE.0) THEN
+           WRITE(IUT6,*) BLANK
+           WRITE(IUT6,*) ERRMSG
+@@ -1289,9 +1291,9 @@ C
+       ALLOCATE(LDOM  (MDOM),STAT=LERR(1))
+       ALLOCATE(NBPRCV(MDOM),STAT=LERR(2))
+       ALLOCATE(NBPSND(MDOM),STAT=LERR(3))
+-      ALLOCATE(  LRCV(MDOM),STAT=LERR(2))
+-      ALLOCATE(  LSND(MDOM),STAT=LERR(3))
+-      CALL ERRCHK(IUT6,IPART,3,LERR,IERR)
++      ALLOCATE(  LRCV(MDOM),STAT=LERR(4))
++      ALLOCATE(  LSND(MDOM),STAT=LERR(5))
++      CALL ERRCHK(IUT6,IPART,5,LERR,IERR)
+       IF(IERR.NE.0) THEN
+           WRITE(IUT6,*) BLANK
+           WRITE(IUT6,*) ERRMSG

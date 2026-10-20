@@ -1,0 +1,764 @@
+diff -urpN a/src/MANYBODY/pair_tersoff.cpp b/src/MANYBODY/pair_tersoff.cpp
+--- a/src/MANYBODY/pair_tersoff.cpp	2023-10-24 12:41:49.000000000 +0900
++++ b/src/MANYBODY/pair_tersoff.cpp	2023-10-24 12:43:07.000000000 +0900
+@@ -77,6 +77,249 @@ PairTersoff::~PairTersoff()
+   }
+ }
+ 
++/* ---Modified-by-RIST-on-Aug2023-start--- */
++// template specialization: SHIFT_FLAG=0, EVFLAG=0, EFLAG=0, VFLAG_EITHER=0
++template<>
++void PairTersoff::eval<0,0,0,0>()
++{
++  int i,j,k,ii,jj,kk,inum,jnum;
++  int itype,jtype,ktype,iparam_ij,iparam_ijk;
++  tagint itag,jtag;
++  double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
++  double fforce;
++  double rsq,rsq1,rsq2;
++  double delr1[3],delr2[3],fi[3],fj[3],fk[3];
++  double r1_hat[3],r2_hat[3];
++  double zeta_ij,prefactor;
++  double forceshiftfac;
++  int *ilist,*jlist,*numneigh,**firstneigh;
++
++  evdwl = 0.0;
++
++  double **x = atom->x;
++  double **f = atom->f;
++  tagint *tag = atom->tag;
++  int *type = atom->type;
++  int nlocal = atom->nlocal;
++  int newton_pair = force->newton_pair;
++  const double cutshortsq = cutmax*cutmax;
++
++  inum = list->inum;
++  ilist = list->ilist;
++  numneigh = list->numneigh;
++  firstneigh = list->firstneigh;
++
++  double fxtmp,fytmp,fztmp;
++
++  // loop over full neighbor list of my atoms
++
++  for (ii = 0; ii < inum; ii++) {
++    i = ilist[ii];
++    itag = tag[i];
++    itype = map[type[i]];
++    xtmp = x[i][0];
++    ytmp = x[i][1];
++    ztmp = x[i][2];
++    fxtmp = fytmp = fztmp = 0.0;
++
++    // two-body interactions, skip half of them
++
++    jlist = firstneigh[i];
++    jnum = numneigh[i];
++    int numshort = 0;
++
++    for (jj = 0; jj < jnum; jj++) {
++      j = jlist[jj];
++      j &= NEIGHMASK;
++
++      delx = xtmp - x[j][0];
++      dely = ytmp - x[j][1];
++      delz = ztmp - x[j][2];
++      rsq = delx*delx + dely*dely + delz*delz;
++
++      if (rsq < cutshortsq) {
++        neighshort[numshort++] = j;
++        if (numshort >= maxshort) {
++          maxshort += maxshort/2;
++          memory->grow(neighshort,maxshort,"pair:neighshort");
++        }
++      }
++
++      jtag = tag[j];
++      if (itag > jtag) {
++        if ((itag+jtag) % 2 == 0) continue;
++      } else if (itag < jtag) {
++        if ((itag+jtag) % 2 == 1) continue;
++      } else {
++        if (x[j][2] < x[i][2]) continue;
++        if (x[j][2] == ztmp && x[j][1] < ytmp) continue;
++        if (x[j][2] == ztmp && x[j][1] == ytmp && x[j][0] < xtmp) continue;
++      }
++
++      jtype = map[type[j]];
++      iparam_ij = elem3param[itype][jtype][jtype];
++      if (rsq >= params[iparam_ij].cutsq) continue;
++
++      repulsive(&params[iparam_ij],rsq,fpair,0,evdwl);
++
++      fxtmp += delx*fpair;
++      fytmp += dely*fpair;
++      fztmp += delz*fpair;
++      f[j][0] -= delx*fpair;
++      f[j][1] -= dely*fpair;
++      f[j][2] -= delz*fpair;
++    }
++
++    // three-body interactions
++    // skip immediately if I-J is not within cutoff
++    double fjxtmp,fjytmp,fjztmp;
++
++    for (jj = 0; jj < numshort; jj++) {
++      j = neighshort[jj];
++      jtype = map[type[j]];
++      iparam_ij = elem3param[itype][jtype][jtype];
++      double fi_sum[3];
++      double fj_sum[3];
++      double fk_a[numshort][3];
++
++      delr1[0] = x[j][0] - xtmp;
++      delr1[1] = x[j][1] - ytmp;
++      delr1[2] = x[j][2] - ztmp;
++      rsq1 = delr1[0]*delr1[0] + delr1[1]*delr1[1] + delr1[2]*delr1[2];
++
++      if (rsq1 >= params[iparam_ij].cutsq) continue;
++
++      const double r1inv = 1.0/sqrt(dot3(delr1, delr1));
++      scale3(r1inv, delr1, r1_hat);
++
++      // accumulate bondorder zeta for each i-j interaction via loop over k
++
++      fjxtmp = fjytmp = fjztmp = 0.0;
++      zeta_ij = 0.0;
++
++      fi_sum[0] = fi_sum[1] = fi_sum[2] = 0.0;
++      fj_sum[0] = fj_sum[1] = fj_sum[2] = 0.0;
++      for (kk = 0; kk < numshort; kk++) {
++	fk_a[kk][0] = fk_a[kk][1] = fk_a[kk][2] = 0.0;
++        if (jj == kk) continue;
++        k = neighshort[kk];
++        ktype = map[type[k]];
++        iparam_ijk = elem3param[itype][jtype][ktype];
++
++        delr2[0] = x[k][0] - xtmp;
++        delr2[1] = x[k][1] - ytmp;
++        delr2[2] = x[k][2] - ztmp;
++        rsq2 = delr2[0]*delr2[0] + delr2[1]*delr2[1] + delr2[2]*delr2[2];
++
++        if (rsq2 >= params[iparam_ijk].cutsq) continue;
++
++        double r2inv = 1.0/sqrt(dot3(delr2, delr2));
++        scale3(r2inv, delr2, r2_hat);
++
++	// From zeta.
++        double rij,rik,costheta,arg,ex_delr;
++
++        rij = sqrt(rsq1);
++        rik = sqrt(rsq2);
++        costheta = dot3(r1_hat,r2_hat);
++
++        if (params[iparam_ijk].powermint == 3) arg = cube(params[iparam_ijk].lam3 * (rij-rik));
++        else arg = params[iparam_ijk].lam3 * (rij-rik);
++
++        if (arg > 69.0776) ex_delr = 1.e30;
++        else if (arg < -69.0776) ex_delr = 0.0;
++        else ex_delr = exp(arg);
++
++        zeta_ij += (ters_fc(rik,&params[iparam_ijk]) * ters_gijk(costheta,&params[iparam_ijk]) * ex_delr);
++
++        // From attractive.
++        double rijinv,rikinv;
++
++        rijinv = 1.0/rij;
++        rikinv = 1.0/rik;
++
++        // From ters_zetaterm_d.
++        double gijk,gijk_d,ex_delr_d,fc,dfc;
++        double dcosdri[3],dcosdrj[3],dcosdrk[3];
++
++        fc = ters_fc(rik,&params[iparam_ijk]);
++        dfc = ters_fc_d(rik,&params[iparam_ijk]);
++
++        if (params[iparam_ijk].powermint == 3)
++          ex_delr_d = 3.0*cube(params[iparam_ijk].lam3) * square(rij-rik)*ex_delr;
++        else ex_delr_d = params[iparam_ijk].lam3 * ex_delr;
++     
++        gijk = ters_gijk(costheta,&params[iparam_ijk]);
++        gijk_d = ters_gijk_d(costheta,&params[iparam_ijk]);
++        costheta_d(r1_hat,rijinv,r2_hat,rikinv,dcosdri,dcosdrj,dcosdrk);
++
++        scale3(-dfc*gijk*ex_delr,r2_hat,fi);
++        scaleadd3(fc*gijk_d*ex_delr,dcosdri,fi,fi);
++        scaleadd3(fc*gijk*ex_delr_d,r2_hat,fi,fi);
++        scaleadd3(-fc*gijk*ex_delr_d,r1_hat,fi,fi);
++        //scale3(prefactor,fi);
++
++        scale3(fc*gijk_d*ex_delr,dcosdrj,fj);
++        scaleadd3(fc*gijk*ex_delr_d,r1_hat,fj,fj);
++        //scale3(prefactor,fj);
++
++        scale3(dfc*gijk*ex_delr,r2_hat,fk);
++        scaleadd3(fc*gijk_d*ex_delr,dcosdrk,fk,fk);
++        scaleadd3(-fc*gijk*ex_delr_d,r2_hat,fk,fk);
++        //scale3(prefactor,fk);
++
++        fi_sum[0]  += fi[0];
++        fi_sum[1]  += fi[1];
++        fi_sum[2]  += fi[2];
++        fj_sum[0]  += fj[0];
++        fj_sum[1]  += fj[1];
++        fj_sum[2]  += fj[2];
++	fk_a[kk][0] = fk[0];
++        fk_a[kk][1] = fk[1];
++        fk_a[kk][2] = fk[2];
++      }
++
++      // pairwise force due to zeta
++
++      force_zeta(&params[iparam_ij],rsq1,zeta_ij,fforce,prefactor,0 ,evdwl);
++
++      fpair = fforce*r1inv;
++
++      fxtmp += delr1[0]*fpair;
++      fytmp += delr1[1]*fpair;
++      fztmp += delr1[2]*fpair;
++      fjxtmp -= delr1[0]*fpair;
++      fjytmp -= delr1[1]*fpair;
++      fjztmp -= delr1[2]*fpair;
++
++      fxtmp += fi_sum[0]*prefactor;
++      fytmp += fi_sum[1]*prefactor;
++      fztmp += fi_sum[2]*prefactor;
++      fjxtmp += fj_sum[0]*prefactor;
++      fjytmp += fj_sum[1]*prefactor;
++      fjztmp += fj_sum[2]*prefactor;
++
++      for (kk = 0; kk < numshort; kk++) {
++	if (jj == kk) continue;
++        k = neighshort[kk];
++        f[k][0] += fk_a[kk][0]*prefactor;
++        f[k][1] += fk_a[kk][1]*prefactor;
++        f[k][2] += fk_a[kk][2]*prefactor;
++      }
++
++      f[j][0] += fjxtmp;
++      f[j][1] += fjytmp;
++      f[j][2] += fjztmp;
++    }
++    f[i][0] += fxtmp;
++    f[i][1] += fytmp;
++    f[i][2] += fztmp;
++  }
++
++  if (vflag_fdotr) virial_fdotr_compute();
++}
++/* ---Modified-by-RIST-on-Aug2023-end--- */
++
+ /* ---------------------------------------------------------------------- */
+ 
+ void PairTersoff::compute(int eflag, int vflag)
+diff -urpN a/src/memory.cpp b/src/memory.cpp
+--- a/src/memory.cpp	2023-10-24 12:41:49.000000000 +0900
++++ b/src/memory.cpp	2023-10-24 12:42:33.000000000 +0900
+@@ -34,6 +34,15 @@
+ #define LAMMPS_MEMALIGN 64
+ #endif
+ 
++//[RIST] alignment for A64FX
++#if defined(__CLANG_FUJITSU) || defined(__FUJITSU)
++#if not defined(LAMMPS_MEMALIGN)
++#define LAMMPS_MEMALIGN 256
++#endif
++#include <cstring>
++#include <malloc.h>
++#endif
++
+ using namespace LAMMPS_NS;
+ 
+ /* ---------------------------------------------------------------------- */
+@@ -70,6 +79,7 @@ void *Memory::smalloc(bigint nbytes, con
+    safe realloc
+ ------------------------------------------------------------------------- */
+ 
++//[RIST] aligned realloc for A64FX
+ void *Memory::srealloc(void *ptr, bigint nbytes, const char *name)
+ {
+   if (nbytes == 0) {
+@@ -96,6 +106,17 @@ void *Memory::srealloc(void *ptr, bigint
+ #endif
+     free(optr);
+   }
++#elif defined(__CLANG_FUJITSU) || defined(__FUJITSU)
++#if defined(LAMMPS_MEMALIGN)
++  ptr = realloc(ptr, nbytes);
++  uintptr_t offset = ((uintptr_t)(const void *)(ptr)) % LAMMPS_MEMALIGN;
++  if (offset) {
++     void *optr = ptr;
++     ptr = smalloc(nbytes, name);
++     memcpy(ptr, optr, MIN(nbytes,malloc_usable_size(optr)));
++     free(optr);
++  }
++#endif
+ #else
+   ptr = realloc(ptr,nbytes);
+ #endif
+diff -urpN a/src/my_page.cpp b/src/my_page.cpp
+--- a/src/my_page.cpp	2023-10-24 12:41:49.000000000 +0900
++++ b/src/my_page.cpp	2023-10-24 12:42:39.000000000 +0900
+@@ -17,6 +17,13 @@
+ #define LAMMPS_MEMALIGN 64
+ #endif
+ 
++//[RIST] alignment for A64FX
++#if defined(__CLANG_FUJITSU) || defined(__FUJITSU)
++#if not defined(LAMMPS_MEMALIGN)
++#define LAMMPS_MEMALIGN 256
++#endif
++#endif
++
+ using namespace LAMMPS_NS;
+ 
+ /** \class LAMMPS_NS::MyPage
+diff -urpN a/src/my_pool_chunk.cpp b/src/my_pool_chunk.cpp
+--- a/src/my_pool_chunk.cpp	2023-10-24 12:41:49.000000000 +0900
++++ b/src/my_pool_chunk.cpp	2023-10-24 12:42:45.000000000 +0900
+@@ -19,6 +19,13 @@
+ #define LAMMPS_MEMALIGN 64
+ #endif
+ 
++//[RIST] alignment for A64FX
++#if defined(__CLANG_FUJITSU) || defined(__FUJITSU)
++#if not defined(LAMMPS_MEMALIGN)
++#define LAMMPS_MEMALIGN 256
++#endif
++#endif
++
+ using namespace LAMMPS_NS;
+ 
+ /** \class LAMMPS_NS::MyPoolChunk
+diff -urpN a/src/OPENMP/pair_lj_charmm_coul_long_omp.cpp b/src/OPENMP/pair_lj_charmm_coul_long_omp.cpp
+--- a/src/OPENMP/pair_lj_charmm_coul_long_omp.cpp	2023-10-24 12:41:49.000000000 +0900
++++ b/src/OPENMP/pair_lj_charmm_coul_long_omp.cpp	2023-10-24 12:44:01.000000000 +0900
+@@ -37,6 +37,148 @@ PairLJCharmmCoulLongOMP::PairLJCharmmCou
+ }
+ 
+ /* ---------------------------------------------------------------------- */
++//[RIST] template specialization: EVFLAG=0, EFLAG=0, NEWTON_PAIR=1
++template<>
++void PairLJCharmmCoulLongOMP::eval<0,0,1>(int iifrom, int iito, ThrData * const thr)
++{
++
++  const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
++  dbl3_t * _noalias const f = (dbl3_t *) thr->get_f()[0];
++  const double * _noalias const q = atom->q;
++  const int * _noalias const type = atom->type;
++  const double * _noalias const special_coul = force->special_coul;
++  const double * _noalias const special_lj = force->special_lj;
++  const double qqrd2e = force->qqrd2e;
++  const double inv_denom_lj = 1.0/denom_lj;
++
++  const int * const ilist = list->ilist;
++  const int * const numneigh = list->numneigh;
++  const int * const * const firstneigh = list->firstneigh;
++  const int nlocal = atom->nlocal;
++
++  // loop over neighbors of my atoms
++
++  for (int ii = iifrom; ii < iito; ++ii) {
++
++    const int i = ilist[ii];
++    const int itype = type[i];
++    const double qtmp = q[i];
++    const double xtmp = x[i].x;
++    const double ytmp = x[i].y;
++    const double ztmp = x[i].z;
++    double fxtmp,fytmp,fztmp;
++    fxtmp=fytmp=fztmp=0.0;
++
++    const int * const jlist = firstneigh[i];
++    const int jnum = numneigh[i];
++    const double * _noalias const lj1i = lj1[itype];
++    const double * _noalias const lj2i = lj2[itype];
++    const double * _noalias const lj3i = lj3[itype];
++    const double * _noalias const lj4i = lj4[itype];
++
++    #pragma clang loop vectorize(assume_safety)
++    for (int jj = 0; jj < jnum; jj++) {
++      //double forcecoul, forcelj, evdwl, ecoul;
++      //forcecoul = forcelj = evdwl = ecoul = 0.0;
++      double forcecoul, forcelj;
++      forcecoul = forcelj = 0.0;
++
++      const int sbindex = sbmask(jlist[jj]);
++      const int j = jlist[jj] & NEIGHMASK;
++
++      const double delx = xtmp - x[j].x;
++      const double dely = ytmp - x[j].y;
++      const double delz = ztmp - x[j].z;
++      const double rsq = delx*delx + dely*dely + delz*delz;
++      const int jtype = type[j];
++
++      //if (rsq < cut_bothsq) { //cut_bothsq=MAX(cut_coulsq,cut_ljsq)
++        const double r2inv = 1.0/rsq;
++
++        if (rsq < cut_coulsq) {
++          if (!ncoultablebits || rsq <= tabinnersq) {
++            const double A1 =  0.254829592;
++            const double A2 = -0.284496736;
++            const double A3 =  1.421413741;
++            const double A4 = -1.453152027;
++            const double A5 =  1.061405429;
++            const double EWALD_F = 1.12837917;
++            const double INV_EWALD_P = 1.0/0.3275911;
++
++            const double r = sqrt(rsq);
++            const double grij = g_ewald * r;
++            const double expm2 = exp(-grij*grij);
++            const double t = INV_EWALD_P / (INV_EWALD_P + grij);
++            const double erfc = t * (A1+t*(A2+t*(A3+t*(A4+t*A5)))) * expm2;
++            const double prefactor = qqrd2e * qtmp*q[j]/r;
++            forcecoul = prefactor * (erfc + EWALD_F*grij*expm2);
++            //if (EFLAG) ecoul = prefactor*erfc;
++            //if (sbindex) { special_coul[0] = 1.0 (fixed)
++              const double adjust = (1.0-special_coul[sbindex])*prefactor;
++              forcecoul -= adjust;
++              //if (EFLAG) ecoul -= adjust;
++            //}
++          } else {
++            union_int_float_t rsq_lookup;
++            rsq_lookup.f = rsq;
++            const int itable = (rsq_lookup.i & ncoulmask) >> ncoulshiftbits;
++            const double fraction = (rsq_lookup.f - rtable[itable]) * drtable[itable];
++            const double table = ftable[itable] + fraction*dftable[itable];
++            forcecoul = qtmp*q[j] * table;
++            //if (EFLAG) ecoul = qtmp*q[j] * (etable[itable] + fraction*detable[itable]);
++            if (sbindex) {
++              const double table2 = ctable[itable] + fraction*dctable[itable];
++              const double prefactor = qtmp*q[j] * table2;
++              const double adjust = (1.0-special_coul[sbindex])*prefactor;
++              forcecoul -= adjust;
++              //if (EFLAG) ecoul -= adjust;
++            }
++          }
++        }
++
++        if (rsq < cut_ljsq) {
++          const double r6inv = r2inv*r2inv*r2inv;
++          forcelj = r6inv * (lj1i[jtype]*r6inv - lj2i[jtype]);
++          const double philj = r6inv*(lj3i[jtype]*r6inv-lj4i[jtype]);
++          //if (EFLAG) evdwl = philj;
++
++          if (rsq > cut_lj_innersq) {
++            const double drsq = cut_ljsq - rsq;
++            const double cut2 = (rsq - cut_lj_innersq) * drsq;
++            const double switch1 = drsq * (drsq*drsq + 3.0*cut2) * inv_denom_lj;
++            const double switch2 = 12.0*rsq * cut2 * inv_denom_lj;
++            forcelj = forcelj*switch1 + philj*switch2;
++            //if (EFLAG) evdwl *= switch1;
++          }
++
++          //if (sbindex) { //special_lj[0] = 1.0 (fixed)
++            const double factor_lj = special_lj[sbindex];
++            forcelj *= factor_lj;
++            //if (EFLAG) evdwl *= factor_lj;
++          //}
++        }
++        const double fpair = (forcecoul + forcelj) * r2inv;
++
++        fxtmp += delx*fpair;
++        fytmp += dely*fpair;
++        fztmp += delz*fpair;
++        //if (NEWTON_PAIR || j < nlocal) {
++          f[j].x -= delx*fpair;
++          f[j].y -= dely*fpair;
++          f[j].z -= delz*fpair;
++        //}
++
++        //if (EVFLAG) ev_tally_thr(this,i,j,nlocal,NEWTON_PAIR,
++        //                         evdwl,ecoul,fpair,delx,dely,delz,thr);
++      //}
++    } // End of jj-loop 
++    f[i].x += fxtmp;
++    f[i].y += fytmp;
++    f[i].z += fztmp;
++  }
++}
++
++/* ---------------------------------------------------------------------- */
+ 
+ void PairLJCharmmCoulLongOMP::compute(int eflag, int vflag)
+ {
+diff -urpN a/src/OPENMP/pair_lj_cut_omp.cpp b/src/OPENMP/pair_lj_cut_omp.cpp
+--- a/src/OPENMP/pair_lj_cut_omp.cpp	2023-10-24 12:41:49.000000000 +0900
++++ b/src/OPENMP/pair_lj_cut_omp.cpp	2023-10-24 12:44:08.000000000 +0900
+@@ -72,6 +72,7 @@ void PairLJCutOMP::compute(int eflag, in
+   } // end of omp parallel region
+ }
+ 
++//[RIST] vectorize only if EVLFAG=EFLAG=0, NEWTON_PAIR=1
+ template <int EVFLAG, int EFLAG, int NEWTON_PAIR>
+ void PairLJCutOMP::eval(int iifrom, int iito, ThrData * const thr)
+ {
+@@ -110,6 +111,7 @@ void PairLJCutOMP::eval(int iifrom, int
+     jnum = numneigh[i];
+     fxtmp=fytmp=fztmp=0.0;
+ 
++    #pragma clang loop vectorize(assume_safety)
+     for (jj = 0; jj < jnum; jj++) {
+       j = jlist[jj];
+       factor_lj = special_lj[sbmask(j)];
+diff -urpN a/src/OPENMP/pair_tersoff_omp.cpp b/src/OPENMP/pair_tersoff_omp.cpp
+--- a/src/OPENMP/pair_tersoff_omp.cpp	2023-10-24 12:41:49.000000000 +0900
++++ b/src/OPENMP/pair_tersoff_omp.cpp	2023-10-24 12:44:16.000000000 +0900
+@@ -28,6 +28,11 @@
+ using namespace LAMMPS_NS;
+ using namespace MathExtra;
+ 
++/* ---Modified-by-RIST-on-Oct2023-start--- */
++#include "math_special.h"
++using namespace MathSpecial;
++/* ---Modified-by-RIST-on-Oct2023-end--- */
++
+ /* ---------------------------------------------------------------------- */
+ 
+ PairTersoffOMP::PairTersoffOMP(LAMMPS *lmp) :
+@@ -37,6 +42,245 @@ PairTersoffOMP::PairTersoffOMP(LAMMPS *l
+   respa_enable = 0;
+ }
+ 
++/* ---Modified-by-RIST-on-Oct2023-start--- */
++// template specialization: SHIFT_FLAG=0, EVFLAG=0, EFLAG=0, VFLAG_EITHER=0
++template<> void PairTersoffOMP::eval<0,0,0,0> (int iifrom, int iito, ThrData * const thr)
++{
++  int i,j,k,ii,jj,kk,jnum,maxshort_thr;
++  tagint itag,jtag;
++  int itype,jtype,ktype,iparam_ij,iparam_ijk;
++  double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
++  double fforce;
++  double rsq,rsq1,rsq2;
++  double delr1[3],delr2[3],fi[3],fj[3],fk[3];
++  double r1_hat[3],r2_hat[3];
++  double zeta_ij,prefactor;
++  double forceshiftfac;
++  int *ilist,*jlist,*numneigh,**firstneigh,*neighshort_thr;
++
++  evdwl = 0.0;
++
++  const auto * _noalias const x = (dbl3_t *) atom->x[0];
++  auto * _noalias const f = (dbl3_t *) thr->get_f()[0];
++  const tagint * _noalias const tag = atom->tag;
++  const int * _noalias const type = atom->type;
++  const int nlocal = atom->nlocal;
++  const double cutshortsq = cutmax*cutmax;
++
++  ilist = list->ilist;
++  numneigh = list->numneigh;
++  firstneigh = list->firstneigh;
++  maxshort_thr = maxshort;
++  memory->create(neighshort_thr,maxshort_thr,"pair_thr:neighshort_thr");
++
++  double fxtmp,fytmp,fztmp;
++
++  // loop over full neighbor list of my atoms
++
++  for (ii = iifrom; ii < iito; ++ii) {
++
++    i = ilist[ii];
++    itag = tag[i];
++    itype = map[type[i]];
++    xtmp = x[i].x;
++    ytmp = x[i].y;
++    ztmp = x[i].z;
++    fxtmp = fytmp = fztmp = 0.0;
++
++    // two-body interactions, skip half of them
++
++    jlist = firstneigh[i];
++    jnum = numneigh[i];
++    int numshort = 0;
++
++    for (jj = 0; jj < jnum; jj++) {
++      j = jlist[jj];
++      j &= NEIGHMASK;
++
++      delx = xtmp - x[j].x;
++      dely = ytmp - x[j].y;
++      delz = ztmp - x[j].z;
++      rsq = delx*delx + dely*dely + delz*delz;
++
++      if (rsq < cutshortsq) {
++        neighshort_thr[numshort++] = j;
++        if (numshort >= maxshort_thr) {
++          maxshort_thr += maxshort_thr/2;
++          memory->grow(neighshort_thr,maxshort_thr,"pair_thr:neighshort_thr");
++        }
++      }
++
++      jtag = tag[j];
++      if (itag > jtag) {
++        if ((itag+jtag) % 2 == 0) continue;
++      } else if (itag < jtag) {
++        if ((itag+jtag) % 2 == 1) continue;
++      } else {
++        if (x[j].z < ztmp) continue;
++        if (x[j].z == ztmp && x[j].y < ytmp) continue;
++        if (x[j].z == ztmp && x[j].y == ytmp && x[j].x < xtmp) continue;
++      }
++
++      jtype = map[type[j]];
++      iparam_ij = elem3param[itype][jtype][jtype];
++      if (rsq >= params[iparam_ij].cutsq) continue;
++
++      //repulsive(&params[iparam_ij],rsq,fpair,EFLAG,evdwl);
++      repulsive(&params[iparam_ij],rsq,fpair,0,evdwl);
++
++      fxtmp += delx*fpair;
++      fytmp += dely*fpair;
++      fztmp += delz*fpair;
++      f[j].x -= delx*fpair;
++      f[j].y -= dely*fpair;
++      f[j].z -= delz*fpair;
++    }
++
++    // three-body interactions
++    // skip immediately if I-J is not within cutoff
++    double fjxtmp,fjytmp,fjztmp;
++
++    for (jj = 0; jj < numshort; jj++) {
++      j = neighshort_thr[jj];
++      jtype = map[type[j]];
++      iparam_ij = elem3param[itype][jtype][jtype];
++
++      delr1[0] = x[j].x - xtmp;
++      delr1[1] = x[j].y - ytmp;
++      delr1[2] = x[j].z - ztmp;
++      rsq1 = delr1[0]*delr1[0] + delr1[1]*delr1[1] + delr1[2]*delr1[2];
++
++      if (rsq1 >= params[iparam_ij].cutsq) continue;
++
++      const double r1inv = 1.0/sqrt(dot3(delr1, delr1));
++      scale3(r1inv, delr1, r1_hat);
++
++      // accumulate bondorder zeta for each i-j interaction via loop over k
++
++      fjxtmp = fjytmp = fjztmp = 0.0;
++      zeta_ij = 0.0;
++
++      double fi_sum[3], fj_sum[3], fk_a[numshort][3];
++      fi_sum[2] = fi_sum[1] = fi_sum[0] = 0.0;
++      fj_sum[2] = fj_sum[1] = fj_sum[0] = 0.0;
++      for (kk = 0; kk < numshort; kk++) {
++        fk_a[kk][0] = fk_a[kk][1] = fk_a[kk][2] = 0.0;
++        if (jj == kk) continue;
++        k = neighshort_thr[kk];
++        ktype = map[type[k]];
++        iparam_ijk = elem3param[itype][jtype][ktype];
++
++        delr2[0] = x[k].x - xtmp;
++        delr2[1] = x[k].y - ytmp;
++        delr2[2] = x[k].z - ztmp;
++        rsq2 = delr2[0]*delr2[0] + delr2[1]*delr2[1] + delr2[2]*delr2[2];
++
++        if (rsq2 >= params[iparam_ijk].cutsq) continue;
++
++        const double r2inv = 1.0/sqrt(dot3(delr2, delr2));
++        scale3(r2inv, delr2, r2_hat);
++
++        // From zeta subroutine.
++        double  arg, rij, rik, costheta, ex_delr;
++
++        rij = sqrt(rsq1);
++        rik = sqrt(rsq2);
++        costheta = dot3(r1_hat,r2_hat);
++
++        if (params[iparam_ijk].powermint == 3) arg = cube(params[iparam_ijk].lam3 * (rij-rik));
++        else                                   arg =      params[iparam_ijk].lam3 * (rij-rik);
++
++        if      (arg > 69.0776)  ex_delr = 1.e30;
++        else if (arg < -69.0776) ex_delr = 0.0;
++        else                     ex_delr = exp(arg);
++
++        zeta_ij += ( ters_fc  (rik,       &params[iparam_ijk])
++                     * ters_gijk(costheta,&params[iparam_ijk])
++                     * ex_delr );
++
++        // From attractive & ters_zetaterm_d subroutine.
++        double rijinv,rikinv;
++        double gijk,gijk_d,ex_delr_d,fc,dfc;
++        double dcosdri[3],dcosdrj[3],dcosdrk[3];
++
++        rijinv = 1.0/rij;
++        rikinv = 1.0/rik;
++
++        fc  = ters_fc  (rik, &params[iparam_ijk]);
++        dfc = ters_fc_d(rik, &params[iparam_ijk]);
++
++        if (params[iparam_ijk].powermint == 3)
++             ex_delr_d = 3.0*cube(params[iparam_ijk].lam3) * square(rij-rik)*ex_delr;
++        else ex_delr_d = params[iparam_ijk].lam3 * ex_delr;
++
++        gijk   = ters_gijk  (costheta, &params[iparam_ijk]);
++        gijk_d = ters_gijk_d(costheta, &params[iparam_ijk]);
++        costheta_d(r1_hat,rijinv,r2_hat,rikinv,dcosdri,dcosdrj,dcosdrk);
++
++        scale3(-dfc*gijk*ex_delr,r2_hat,fi);
++        scaleadd3(fc*gijk_d*ex_delr,dcosdri,fi,fi);
++        scaleadd3(fc*gijk*ex_delr_d,r2_hat,fi,fi);
++        scaleadd3(-fc*gijk*ex_delr_d,r1_hat,fi,fi);
++        //scale3(prefactor,fi);
++
++        scale3(fc*gijk_d*ex_delr,dcosdrj,fj);
++        scaleadd3(fc*gijk*ex_delr_d,r1_hat,fj,fj);
++        //scale3(prefactor,fj);
++
++        scale3(dfc*gijk*ex_delr,r2_hat,fk);
++        scaleadd3(fc*gijk_d*ex_delr,dcosdrk,fk,fk);
++        scaleadd3(-fc*gijk*ex_delr_d,r2_hat,fk,fk);
++        //scale3(prefactor,fk);
++
++        fi_sum[0]  += fi[0];
++        fi_sum[1]  += fi[1];
++        fi_sum[2]  += fi[2];
++        fj_sum[0]  += fj[0];
++        fj_sum[1]  += fj[1];
++        fj_sum[2]  += fj[2];
++        fk_a[kk][0] = fk[0];
++        fk_a[kk][1] = fk[1];
++        fk_a[kk][2] = fk[2];
++      }
++
++      // pairwise force due to zeta
++      force_zeta(&params[iparam_ij],rsq1,zeta_ij,fforce,prefactor,0    ,evdwl);
++
++      fpair = fforce*r1inv;
++      fxtmp += delr1[0]*fpair;
++      fytmp += delr1[1]*fpair;
++      fztmp += delr1[2]*fpair;
++      fjxtmp -= delr1[0]*fpair;
++      fjytmp -= delr1[1]*fpair;
++      fjztmp -= delr1[2]*fpair;
++
++      fxtmp  += fi_sum[0] * prefactor;
++      fytmp  += fi_sum[1] * prefactor;
++      fztmp  += fi_sum[2] * prefactor;
++      fjxtmp += fj_sum[0] * prefactor;
++      fjytmp += fj_sum[1] * prefactor;
++      fjztmp += fj_sum[2] * prefactor;
++
++      for (kk = 0; kk < numshort; kk++) {
++        if (jj == kk) continue;
++        k = neighshort_thr[kk];
++        f[k].x += fk_a[kk][0] * prefactor;
++        f[k].y += fk_a[kk][1] * prefactor;
++        f[k].z += fk_a[kk][2] * prefactor;
++      }
++
++      f[j].x += fjxtmp;
++      f[j].y += fjytmp;
++      f[j].z += fjztmp;
++    }
++    f[i].x += fxtmp;
++    f[i].y += fytmp;
++    f[i].z += fztmp;
++  }
++  memory->destroy(neighshort_thr);
++}
++/* ---Modified-by-RIST-on-Oct2023-end--- */
++
+ /* ---------------------------------------------------------------------- */
+ 
+ void PairTersoffOMP::compute(int eflag, int vflag)

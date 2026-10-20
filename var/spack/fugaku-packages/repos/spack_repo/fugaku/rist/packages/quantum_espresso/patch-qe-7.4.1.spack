@@ -1,0 +1,48 @@
+diff -ru a/EPW/src/utilities/low_lvl.f90 b/EPW/src/utilities/low_lvl.f90
+--- a/EPW/src/utilities/low_lvl.f90	2025-09-24 03:59:55.000000000 +0900
++++ b/EPW/src/utilities/low_lvl.f90	2025-09-22 16:11:25.000000000 +0900
+@@ -736,10 +736,10 @@
+     !!
+     LOGICAL :: ifxst
+     !! Does the file exists
+-#if defined(__PGI) || defined(__CRAY) || defined(__XLF) || defined(__FLANG)
++!!#if defined(__PGI) || defined(__CRAY) || defined(__XLF) || defined(__FLANG)
+     INTEGER, EXTERNAL :: getpid
+     !! PID of the process
+-#endif
++!!#endif
+     INTEGER :: pid
+     !! PID of the process
+     !
+diff -ru a/install/extlibs_makefile b/install/extlibs_makefile
+--- a/install/extlibs_makefile	2025-09-24 03:59:19.000000000 +0900
++++ b/install/extlibs_makefile	2025-09-22 04:13:53.000000000 +0900
+@@ -63,8 +63,17 @@
+ 
+ CUDA_PATH := $(if $(GPU_ARCH),$(CUDA_PATH),no)
+ libcuda_devxlib :
+-	cd $(TOPDIR)/external/devxlib/src; \
+-	ln -fs $(TOPDIR)/make.inc ../; \
++	cd $(TOPDIR)/external/devxlib; \
++	touch make.inc; \
++	$(MAKE) clean; \
++	export F90FLAGS="$(FOX_FLAGS)"; \
++	./configure FC=$(F90) F90=$(F90) CC=$(CC) \
++	--with-cuda=$(CUDA_PATH) \
++	--with-cuda-cc=$(GPU_ARCH) \
++	--with-cuda-runtime=$(CUDA_RUNTIME) \
++	--disable-parallel \
++	--enable-cuda-env-check=no \
++	--host=arm-linux-gnu; \
+ 	$(MAKE) all; \
+ 	touch $(TOPDIR)/install/libcuda_devxlib # do not download and configure again
+ 
+@@ -86,7 +95,7 @@
+         mkdir ../MBD; \
+         cd $(TOPDIR)/external/mbd/src; \
+ 	export FXX=$(F90); export FXXOPT="$(F90FLAGS)"; \
+-	$(MAKE) -f ../../mbd.make; cp *.mod *.a $(TOPDIR)/MBD; cd ../../.. ;fi
++	$(MAKE) -f ../../mbd.make LIBMBD_C_API=0; cp *.mod *.a $(TOPDIR)/MBD; cd ../../.. ;fi
+ 
+ libmbd_clean:
+ 	if test -d ../MBD; then (rm -R -f ../MBD); fi

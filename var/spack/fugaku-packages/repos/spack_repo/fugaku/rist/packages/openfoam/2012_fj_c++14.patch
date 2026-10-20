@@ -1,0 +1,49 @@
+diff -r 7b4ed033be0b OpenFOAM-v2012/etc/bashrc
+--- OpenFOAM-v2012/etc/bashrc	Wed Aug 03 10:53:07 2022 +0900
++++ OpenFOAM-v2012/etc/bashrc	Wed Aug 03 10:55:24 2022 +0900
+@@ -123,7 +123,7 @@
+ # [FOAM_SIGFPE] - Trap floating-point exceptions.
+ #               - overrides the 'trapFpe' controlDict entry
+ # = true | false
+-#export FOAM_SIGFPE=true
++export FOAM_SIGFPE=false
+ 
+ # [FOAM_SETNAN] - Initialize memory with NaN
+ #               - overrides the 'setNaN' controlDict entry
+diff -r 7b4ed033be0b OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c
+--- OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c	Wed Aug 03 10:53:07 2022 +0900
++++ OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c	Wed Aug 03 10:55:24 2022 +0900
+@@ -1,9 +1,9 @@
+ # Fujitsu compiler - a clang variant
+ include $(GENERAL_RULES)/Clang/c
+ 
+-cc          = fcc
++cc          = fcc -Nclang
+ 
+-cARCH       =
++cARCH       = -m64 -march=armv8.2-a+sve -mcpu=a64fx
+ 
+ # Compile option is non-mandatory, but must be non-empty
+ sinclude $(DEFAULT_RULES)/c$(WM_COMPILE_OPTION)
+diff -r 7b4ed033be0b OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c++
+--- OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c++	Wed Aug 03 10:53:07 2022 +0900
++++ OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c++	Wed Aug 03 10:55:24 2022 +0900
+@@ -1,9 +1,9 @@
+ # Fujitsu compiler - a clang variant
+ include $(GENERAL_RULES)/Clang/c++
+ 
+-CC          = FCC -std=c++11
++CC          = FCC -Nclang -std=c++14
+ 
+-c++ARCH     = -pthread
++c++ARCH     = -pthread -m64 -march=armv8.2-a+sve -mcpu=a64fx
+ 
+ include $(DEFAULT_RULES)/c++$(WM_COMPILE_OPTION)
+ 
+diff -r 7b4ed033be0b OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c++Opt
+--- OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c++Opt	Wed Aug 03 10:53:07 2022 +0900
++++ OpenFOAM-v2012/wmake/rules/linuxARM64Fujitsu/c++Opt	Wed Aug 03 10:55:24 2022 +0900
+@@ -1,2 +1,2 @@
+ c++DBUG     =
+-c++OPT      = -ffp-contract=fast -ffast-math -O3 -funsafe-math-optimizations
++c++OPT      = -O3

@@ -1,0 +1,15 @@
+--- a/cmake/CMakeLists.txt	2020-06-30 03:24:02.000000000 +0900
++++ b/cmake/CMakeLists.txt	2020-11-16 09:59:55.000000000 +0900
+@@ -73,9 +73,9 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GN
+   set(CMAKE_TUNE_DEFAULT "-march=native")
+ endif()
+ 
+-if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
+-  set(CMAKE_TUNE_DEFAULT "-march=native")
+-endif()
++#if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
++#  set(CMAKE_TUNE_DEFAULT "-march=native")
++#endif()
+ 
+ # we require C++11 without extensions
+ set(CMAKE_CXX_STANDARD 11)

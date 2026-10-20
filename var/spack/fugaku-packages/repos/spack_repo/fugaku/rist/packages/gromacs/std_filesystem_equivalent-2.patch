@@ -1,0 +1,370 @@
+diff -ruN orig/gromacs-2023.2/cmake/FindLibStdCpp.cmake gromacs-2023.2/cmake/FindLibStdCpp.cmake
+--- orig/gromacs-2023.2/cmake/FindLibStdCpp.cmake	2023-07-12 23:19:38.000000000 +0900
++++ gromacs-2023.2/cmake/FindLibStdCpp.cmake	2023-07-18 18:37:19.777711383 +0900
+@@ -38,12 +38,12 @@
+ # Does nothing if compiler includes std-library (e.g. GCC), or already
+ # works, or compiler uses different std-library
+ # (either because of different defaults (e.g. on MacOS) or user flags (e.g. -stdlib=libc++)).
+-# The heuristic by the compiler of how to find libstdc++ is honored. Any user-provided flags in
++# The heuristic by the compiler of how to find libstdc++ is ignored. Any user-provided flags in
+ # e.g. CXXFLAGS for the location of libstdc++ are honored. The user can choose the libstdc++ by setting
+ # GMX_GPLUSPLUS_PATH, PATH or CMAKE_PREFIX_PATH to make sure the correct the g++ is found.
+-# Gives error if no g++ is found or warns if the g++ found isn't new enough.
++# Gives error if no g++ is found or the g++ found isn't new enough (5.1 is required).
+ # The location of g++ is cached as GMX_GPLUSPLUS_PATH making sure that the same libstdc++ is used
+-# for builds at different times using the same cache file (so that e.g. loading a module is
++# for builds at different times using the same cache file (so that e.g. module loading is
+ # not required for a reproducible build). Note that GMX_GPLUSPLUS_PATH is ignored if it is
+ # not needed because the compiler already found a std library via some other mechanism.
+ 
+@@ -122,7 +122,7 @@
+             OUTPUT_STRIP_TRAILING_WHITESPACE)
+         if (NOT "${GMX_GPLUSPLUS_VERSION}" MATCHES "^[0-9]+\\.[0-9]+\\.?[0-9]?$") #Should never happen
+             message(FATAL_ERROR "Couldn't detect g++ version for ${GMX_GPLUSPLUS_PATH}. Version output: ${GMX_GPLUSPLUS_VERSION} "
+-                ", error: ${GMX_GPLUSPLUS_VERSION_ERROR}. Please report to developers.")
++                ", error: ${GMX_GPLUSPLUS_VERSION_ERROR}. Please report to developers.${EXTRA_MESSAGE}")
+         endif()
+         # Cache this, so future configurations won't have to run g++ again.
+         set(GMX_GPLUSPLUS_VERSION ${GMX_GPLUSPLUS_VERSION} CACHE STRING "Version of g++ from which libstdc++ is obtained")
+@@ -130,7 +130,7 @@
+     if (${GMX_GPLUSPLUS_VERSION} VERSION_LESS 9)
+         message(WARNING "Found g++ at ${GMX_GPLUSPLUS_PATH}. Its version is ${GMX_GPLUSPLUS_VERSION}. "
+             "GROMACS encourages at least version 9. "
+-            "If you see problems, please specify a different g++ using GMX_GPLUSPLUS_PATH, PATH or CMAKE_PREFIX_PATH.")
++            "If you see problems, please specify a different g++ using GMX_GPLUSPLUS_PATH, PATH or CMAKE_PREFIX_PATH.${EXTRA_MESSAGE}")
+     endif()
+ 
+     # Now make some sanity checks on the compiler using libstdc++.
+@@ -174,6 +174,24 @@
+     endif()
+ endif()
+ 
++# Maybe we just need to link an extra library for std::filesystem, perhaps via
++# the --gcc-toolchain that was just set up.
++find_package(Filesystem)
++if(CXX_FILESYSTEM_HAVE_FS)
++    cmake_push_check_state()
++    get_target_property(CMAKE_REQUIRED_LIBRARIES std::filesystem INTERFACE_LINK_LIBRARIES)
++    check_cxx_source_compiles("${SAMPLE_CODE_TO_TEST_CXX17}" CXX17_COMPILES_WHEN_LINKING_FS_LIBRARY)
++    cmake_pop_check_state()
++
++    if(CXX17_COMPILES_WHEN_LINKING_FS_LIBRARY)
++        # If we reach here, then we know that GROMACS targets need to
++        # link the std::filesystem target when such a library was found.
++        return()
++    else()
++        set(EXTRA_MESSAGE " even though a library for std::filesystem was found")
++    endif()
++endif()
++
+ if (NOT USING_LIBSTDCXX)
+     # Just linking an extra library for std::filesystem didn't help,
+     # so let's try to narrow down what fails.
+@@ -185,7 +203,7 @@
+             "Please use a working C++17 compiler and standard library.")
+     else()
+         message(FATAL_ERROR "The C++ compiler cannot find a working standard library "
+-            "that supports std::filesystem. "
++            "that supports std::filesystem${EXTRA_MESSAGE}. "
+             "The compiler was not trying to use libstdc++. "
+             "The GROMACS build system cannot handle this case. "
+             "Please use a working C++17 compiler and standard library.")
+@@ -203,5 +221,5 @@
+         set (OTHER_EXTRA_MESSAGE " Check your toolchain documentation or environment flags so that they will find a suitable C++17 standard library.")
+     endif()
+     message(FATAL_ERROR "GROMACS requires C++17, but a test of such functionality in the C++ standard "
+-        "library failed to compile.${OTHER_EXTRA_MESSAGE}")
++        "library failed to compile ${EXTRA_MESSAGE}.${OTHER_EXTRA_MESSAGE}")
+ endif()
+diff -ruN orig/gromacs-2023.2/CMakeLists.txt gromacs-2023.2/CMakeLists.txt
+--- orig/gromacs-2023.2/CMakeLists.txt	2023-07-18 18:33:13.000000000 +0900
++++ gromacs-2023.2/CMakeLists.txt	2023-07-18 18:37:19.777711383 +0900
+@@ -50,6 +50,7 @@
+ list(APPEND CMAKE_MODULE_PATH
+     ${CMAKE_CURRENT_SOURCE_DIR}/cmake
+     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Platform
++    ${CMAKE_CURRENT_SOURCE_DIR}/src/external/cmake
+     )
+ 
+ if(APPLE)
+diff -ruN orig/gromacs-2023.2/docs/install-guide/index.rst gromacs-2023.2/docs/install-guide/index.rst
+--- orig/gromacs-2023.2/docs/install-guide/index.rst	2023-07-12 23:19:38.000000000 +0900
++++ gromacs-2023.2/docs/install-guide/index.rst	2023-07-18 18:37:19.777711383 +0900
+@@ -143,11 +143,8 @@
+ On Linux, the clang compilers typically use for their C++ library
+ the libstdc++ which comes with g++. For |Gromacs|, we require
+ the compiler to support libstc++ version 7.1 or higher. To select a
+-particular libstdc++ library for a compiler whose default standard
+-library does not work, provide the path to g++ with
+-``-DGMX_GPLUSPLUS_PATH=/path/to/g++``. Note that if you then build
+-a further project that depends on |Gromacs| you will need to arrange
+-to use the same compiler and libstdc++.
++particular libstdc++ library, provide the path to g++ with
++``-DGMX_GPLUSPLUS_PATH=/path/to/g++``.
+ 
+ To build with clang and llvm's libcxx standard library, use
+ ``-DCMAKE_CXX_FLAGS=-stdlib=libc++``.
+diff -ruN orig/gromacs-2023.2/src/external/cmake/FindFilesystem.cmake gromacs-2023.2/src/external/cmake/FindFilesystem.cmake
+--- orig/gromacs-2023.2/src/external/cmake/FindFilesystem.cmake	1970-01-01 09:00:00.000000000 +0900
++++ gromacs-2023.2/src/external/cmake/FindFilesystem.cmake	2023-07-18 18:37:19.777711383 +0900
+@@ -0,0 +1,247 @@
++# Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
++# file Copyright.txt or https://cmake.org/licensing for details.
++
++#[=======================================================================[.rst:
++
++FindFilesystem
++##############
++
++This module supports the C++17 standard library's filesystem utilities. Use the
++:imp-target:`std::filesystem` imported target to
++
++Options
++*******
++
++The ``COMPONENTS`` argument to this module supports the following values:
++
++.. find-component:: Experimental
++    :name: fs.Experimental
++
++    Allows the module to find the "experimental" Filesystem TS version of the
++    Filesystem library. This is the library that should be used with the
++    ``std::experimental::filesystem`` namespace.
++
++.. find-component:: Final
++    :name: fs.Final
++
++    Finds the final C++17 standard version of the filesystem library.
++
++If no components are provided, behaves as if the
++:find-component:`fs.Final` component was specified.
++
++If both :find-component:`fs.Experimental` and :find-component:`fs.Final` are
++provided, first looks for ``Final``, and falls back to ``Experimental`` in case
++of failure. If ``Final`` is found, :imp-target:`std::filesystem` and all
++:ref:`variables <fs.variables>` will refer to the ``Final`` version.
++
++
++Imported Targets
++****************
++
++.. imp-target:: std::filesystem
++
++    The ``std::filesystem`` imported target is defined when any requested
++    version of the C++ filesystem library has been found, whether it is
++    *Experimental* or *Final*.
++
++    If no version of the filesystem library is available, this target will not
++    be defined.
++
++    .. note::
++        This target has ``cxx_std_17`` as an ``INTERFACE``
++        :ref:`compile language standard feature <req-lang-standards>`. Linking
++        to this target will automatically enable C++17 if no later standard
++        version is already required on the linking target.
++
++
++.. _fs.variables:
++
++Variables
++*********
++
++.. variable:: CXX_FILESYSTEM_IS_EXPERIMENTAL
++
++    Set to ``TRUE`` when the :find-component:`fs.Experimental` version of C++
++    filesystem library was found, otherwise ``FALSE``.
++
++.. variable:: CXX_FILESYSTEM_HAVE_FS
++
++    Set to ``TRUE`` when a filesystem header was found.
++
++.. variable:: CXX_FILESYSTEM_HEADER
++
++    Set to either ``filesystem`` or ``experimental/filesystem`` depending on
++    whether :find-component:`fs.Final` or :find-component:`fs.Experimental` was
++    found.
++
++.. variable:: CXX_FILESYSTEM_NAMESPACE
++
++    Set to either ``std::filesystem`` or ``std::experimental::filesystem``
++    depending on whether :find-component:`fs.Final` or
++    :find-component:`fs.Experimental` was found.
++
++
++Examples
++********
++
++Using `find_package(Filesystem)` with no component arguments:
++
++.. code-block:: cmake
++
++    find_package(Filesystem REQUIRED)
++
++    add_executable(my-program main.cpp)
++    target_link_libraries(my-program PRIVATE std::filesystem)
++
++
++#]=======================================================================]
++
++
++if(TARGET std::filesystem)
++    # This module has already been processed. Don't do it again.
++    return()
++endif()
++
++cmake_minimum_required(VERSION 3.10)
++
++include(CMakePushCheckState)
++include(CheckIncludeFileCXX)
++
++# If we're not cross-compiling, try to run test executables.
++# Otherwise, assume that compile + link is a sufficient check.
++if(CMAKE_CROSSCOMPILING)
++    include(CheckCXXSourceCompiles)
++    macro(_cmcm_check_cxx_source code var)
++        check_cxx_source_compiles("${code}" ${var})
++    endmacro()
++else()
++    include(CheckCXXSourceRuns)
++    macro(_cmcm_check_cxx_source code var)
++        check_cxx_source_runs("${code}" ${var})
++    endmacro()
++endif()
++
++cmake_push_check_state()
++
++set(CMAKE_REQUIRED_QUIET ${Filesystem_FIND_QUIETLY})
++
++# All of our tests required C++17 or later
++set(CMAKE_CXX_STANDARD 17)
++
++# Normalize and check the component list we were given
++set(want_components ${Filesystem_FIND_COMPONENTS})
++if(Filesystem_FIND_COMPONENTS STREQUAL "")
++    set(want_components Final)
++endif()
++
++# Warn on any unrecognized components
++set(extra_components ${want_components})
++list(REMOVE_ITEM extra_components Final Experimental)
++foreach(component IN LISTS extra_components)
++    message(WARNING "Extraneous find_package component for Filesystem: ${component}")
++endforeach()
++
++# Detect which of Experimental and Final we should look for
++set(find_experimental TRUE)
++set(find_final TRUE)
++if(NOT "Final" IN_LIST want_components)
++    set(find_final FALSE)
++endif()
++if(NOT "Experimental" IN_LIST want_components)
++    set(find_experimental FALSE)
++endif()
++
++if(find_final)
++    check_include_file_cxx("filesystem" _CXX_FILESYSTEM_HAVE_HEADER)
++    mark_as_advanced(_CXX_FILESYSTEM_HAVE_HEADER)
++    if(_CXX_FILESYSTEM_HAVE_HEADER)
++        # We found the non-experimental header. Don't bother looking for the
++        # experimental one.
++        set(find_experimental FALSE)
++    endif()
++else()
++    set(_CXX_FILESYSTEM_HAVE_HEADER FALSE)
++endif()
++
++if(find_experimental)
++    check_include_file_cxx("experimental/filesystem" _CXX_FILESYSTEM_HAVE_EXPERIMENTAL_HEADER)
++    mark_as_advanced(_CXX_FILESYSTEM_HAVE_EXPERIMENTAL_HEADER)
++else()
++    set(_CXX_FILESYSTEM_HAVE_EXPERIMENTAL_HEADER FALSE)
++endif()
++
++if(_CXX_FILESYSTEM_HAVE_HEADER)
++    set(_have_fs TRUE)
++    set(_fs_header filesystem)
++    set(_fs_namespace std::filesystem)
++    set(_is_experimental FALSE)
++elseif(_CXX_FILESYSTEM_HAVE_EXPERIMENTAL_HEADER)
++    set(_have_fs TRUE)
++    set(_fs_header experimental/filesystem)
++    set(_fs_namespace std::experimental::filesystem)
++    set(_is_experimental TRUE)
++else()
++    set(_have_fs FALSE)
++endif()
++
++set(CXX_FILESYSTEM_HAVE_FS ${_have_fs} CACHE BOOL "TRUE if we have the C++ filesystem headers")
++set(CXX_FILESYSTEM_HEADER ${_fs_header} CACHE STRING "The header that should be included to obtain the filesystem APIs")
++set(CXX_FILESYSTEM_NAMESPACE ${_fs_namespace} CACHE STRING "The C++ namespace that contains the filesystem APIs")
++set(CXX_FILESYSTEM_IS_EXPERIMENTAL ${_is_experimental} CACHE BOOL "TRUE if the C++ filesystem library is the experimental version")
++
++set(_found FALSE)
++
++if(CXX_FILESYSTEM_HAVE_FS)
++    # We have some filesystem library available. Do link checks
++    string(CONFIGURE [[
++        #include <cstdlib>
++        #include <@CXX_FILESYSTEM_HEADER@>
++
++        int main() {
++            auto cwd = @CXX_FILESYSTEM_NAMESPACE@::current_path();
++            printf("%s", cwd.c_str());
++            return EXIT_SUCCESS;
++        }
++    ]] code @ONLY)
++
++    # Check a simple filesystem program without any linker flags
++    _cmcm_check_cxx_source("${code}" CXX_FILESYSTEM_NO_LINK_NEEDED)
++
++    set(can_link ${CXX_FILESYSTEM_NO_LINK_NEEDED})
++
++    if(NOT CXX_FILESYSTEM_NO_LINK_NEEDED)
++        set(prev_libraries ${CMAKE_REQUIRED_LIBRARIES})
++        # Add the libstdc++ flag
++        set(CMAKE_REQUIRED_LIBRARIES ${prev_libraries} -lstdc++fs)
++        _cmcm_check_cxx_source("${code}" CXX_FILESYSTEM_STDCPPFS_NEEDED)
++        set(can_link ${CXX_FILESYSTEM_STDCPPFS_NEEDED})
++        if(NOT CXX_FILESYSTEM_STDCPPFS_NEEDED)
++            # Try the libc++ flag
++            set(CMAKE_REQUIRED_LIBRARIES ${prev_libraries} -lc++fs)
++            _cmcm_check_cxx_source("${code}" CXX_FILESYSTEM_CPPFS_NEEDED)
++            set(can_link ${CXX_FILESYSTEM_CPPFS_NEEDED})
++        endif()
++    endif()
++
++    if(can_link)
++        add_library(std::filesystem INTERFACE IMPORTED)
++        set_property(TARGET std::filesystem APPEND PROPERTY INTERFACE_COMPILE_FEATURES cxx_std_17)
++        set(_found TRUE)
++
++        if(CXX_FILESYSTEM_NO_LINK_NEEDED)
++            # Nothing to add...
++        elseif(CXX_FILESYSTEM_STDCPPFS_NEEDED)
++            set_property(TARGET std::filesystem APPEND PROPERTY INTERFACE_LINK_LIBRARIES -lstdc++fs)
++        elseif(CXX_FILESYSTEM_CPPFS_NEEDED)
++            set_property(TARGET std::filesystem APPEND PROPERTY INTERFACE_LINK_LIBRARIES -lc++fs)
++        endif()
++    endif()
++endif()
++
++cmake_pop_check_state()
++
++set(Filesystem_FOUND ${_found} CACHE BOOL "TRUE if we can run a program using std::filesystem" FORCE)
++
++if(Filesystem_FIND_REQUIRED AND NOT Filesystem_FOUND)
++    message(FATAL_ERROR "Cannot run simple program using std::filesystem")
++endif()
+diff -ruN orig/gromacs-2023.2/src/gromacs/CMakeLists.txt gromacs-2023.2/src/gromacs/CMakeLists.txt
+--- orig/gromacs-2023.2/src/gromacs/CMakeLists.txt	2023-07-18 18:33:13.000000000 +0900
++++ gromacs-2023.2/src/gromacs/CMakeLists.txt	2023-07-18 18:37:19.778711389 +0900
+@@ -424,6 +424,9 @@
+ if (GMX_OPENMP)
+     target_link_libraries(libgromacs PUBLIC OpenMP::OpenMP_CXX)
+ endif()
++if(CXX_FILESYSTEM_HAVE_FS)
++    target_link_libraries(libgromacs PUBLIC std::filesystem)
++endif()
+ set_target_properties(libgromacs PROPERTIES
+                       OUTPUT_NAME "gromacs${GMX_LIBS_SUFFIX}"
+                       SOVERSION ${LIBRARY_SOVERSION_MAJOR}

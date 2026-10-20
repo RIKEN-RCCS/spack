@@ -1,0 +1,48 @@
+diff -r 4b354823cedb -r eaba93553ca3 src/OpenFOAM/db/IOstreams/IOstreams/IOstream.H
+--- a/src/OpenFOAM/db/IOstreams/IOstreams/IOstream.H	Mon Jan 05 15:13:51 2026 +0900
++++ b/src/OpenFOAM/db/IOstreams/IOstreams/IOstream.H	Mon Jan 05 17:06:11 2026 +0900
+@@ -534,7 +534,7 @@
+ void inputLoop(IS& is, Type& arg1, Args&&... args)
+ {
+     is >> arg1;
+-    if constexpr (sizeof...(args))
++    if constexpr(static_cast<bool>(sizeof...(args)))
+     {
+         Detail::inputLoop(is, std::forward<Args>(args)...);
+     }
+@@ -545,7 +545,7 @@
+ void outputLoop(OS& os, const Type& arg1, Args&&... args)
+ {
+     os << arg1;
+-    if constexpr (sizeof...(args))
++    if constexpr(static_cast<bool> (sizeof...(args)))
+     {
+         Detail::outputLoop(os, std::forward<Args>(args)...);
+     }
+diff -r 4b354823cedb -r eaba93553ca3 src/OpenFOAM/db/IOstreams/output/FlatOutput.H
+--- a/src/OpenFOAM/db/IOstreams/output/FlatOutput.H	Mon Jan 05 15:13:51 2026 +0900
++++ b/src/OpenFOAM/db/IOstreams/output/FlatOutput.H	Mon Jan 05 17:06:11 2026 +0900
+@@ -153,20 +153,20 @@
+         {
+             [[maybe_unused]] bool started = false;
+ 
+-            if constexpr (Delimiters::open)  // Not nul char
++            if constexpr(static_cast<bool>(Delimiters::open))  // Not nul char
+             {
+                 os << Delimiters::open;
+             }
+             for (const auto& item : values)
+             {
+-                if constexpr (Delimiters::separator)  // Not nul char
++                if constexpr(static_cast<bool>(Delimiters::separator))  // Not nul char
+                 {
+                     if (started) os << Delimiters::separator;
+                     started = true;
+                 }
+                 os << item;
+             }
+-            if constexpr (Delimiters::close)  // Not nul char
++            if constexpr(static_cast<bool>(Delimiters::close))  // Not nul char
+             {
+                 os << Delimiters::close;
+             }

@@ -1,0 +1,42 @@
+From 401680f12eb23a687d02e89e5f7790fb2d407115 Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Mon, 23 Dec 2024 13:53:32 +0900
+Subject: [PATCH 7/7] fftomp
+
+---
+ src/gromacs/fft/CMakeLists.txt | 3 +++
+ src/gromacs/fft/fft5d.cpp      | 2 ++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/src/gromacs/fft/CMakeLists.txt b/src/gromacs/fft/CMakeLists.txt
+index 85b705317a..f58be10e03 100644
+--- a/src/gromacs/fft/CMakeLists.txt
++++ b/src/gromacs/fft/CMakeLists.txt
+@@ -61,6 +61,9 @@ else()
+     target_link_libraries(fft_external PRIVATE legacy_api)
+     target_link_libraries(fft_external PRIVATE $<BUILD_INTERFACE:legacy_modules>)
+     target_link_libraries(fft_external PRIVATE math timing utility)
++    if (GMX_OPENMP)
++        target_link_libraries(fft_external PUBLIC OpenMP::OpenMP_CXX)
++    endif()
+     set_target_properties(fft_external PROPERTIES 
+                           OUTPUT_NAME "fft${GMX_LIBS_SUFFIX}"
+                           )
+diff --git a/src/gromacs/fft/fft5d.cpp b/src/gromacs/fft/fft5d.cpp
+index 1638bffc30..fd14eb15f9 100644
+--- a/src/gromacs/fft/fft5d.cpp
++++ b/src/gromacs/fft/fft5d.cpp
+@@ -627,8 +627,10 @@ fft5d_plan fft5d_plan_3d(int                NG,
+             /* Make sure that the init routines are only called by one thread at a time and in order
+                (later is only important to not confuse valgrind)
+              */
++#pragma omp parallel for num_threads(nthreads) schedule(static) ordered
+             for (int t = 0; t < nthreads; t++)
+             {
++#pragma omp ordered
+                 {
+                     try
+                     {
+-- 
+2.43.5
+

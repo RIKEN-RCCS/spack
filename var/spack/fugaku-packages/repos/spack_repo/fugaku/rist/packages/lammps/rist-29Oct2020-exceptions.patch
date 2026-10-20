@@ -1,0 +1,15 @@
+diff -urpN a/src/error.cpp b/src/error.cpp
+--- a/src/error.cpp       2024-01-19 08:56:16.000000000 +0900
++++ b/src/error.cpp       2024-01-19 08:59:58.000000000 +0900
+@@ -150,6 +150,11 @@ void Error::all(const std::string &file,
+   std::string msg = fmt::format("ERROR: {} ({}:{})\n",
+                                 str, truncpath(file), line);
+
++  // [RIST added part start]
++  if (logfile) std::fflush(logfile);
++  if (screen && screen != stdout) std::fflush(screen);
++  // [RIST added part end]
++
+   if (universe->nworlds > 1) {
+     throw LAMMPSAbortException(msg, universe->uworld);
+   }

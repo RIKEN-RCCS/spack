@@ -1,0 +1,28 @@
+From 8b4700b17f3177f340142d200c4865374f41bbc5 Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Thu, 22 Jan 2026 15:36:16 +0900
+Subject: [PATCH 9/9] Fix std::timespec usage on FJ compilers
+
+---
+ src/gromacs/timing/walltime_accounting.cpp | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/gromacs/timing/walltime_accounting.cpp b/src/gromacs/timing/walltime_accounting.cpp
+index 8ffea1e5fd..de3727d65c 100644
+--- a/src/gromacs/timing/walltime_accounting.cpp
++++ b/src/gromacs/timing/walltime_accounting.cpp
+@@ -209,7 +209,11 @@ double gmx_gettime()
+        headers claim sufficient support for POSIX (ie not Mac and
+        Windows). */
+ #if HAVE_CLOCK_GETTIME && defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0
++#ifdef __CLANG_FUJITSU
++    struct timespec t;
++#else
+     struct std::timespec t;
++#endif
+     double               seconds;
+ 
+     clock_gettime(CLOCK_REALTIME, &t);
+-- 
+2.43.5
+

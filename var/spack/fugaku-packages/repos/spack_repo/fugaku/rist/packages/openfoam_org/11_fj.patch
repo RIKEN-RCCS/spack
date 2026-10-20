@@ -1,0 +1,172 @@
+diff -uprN a/OpenFOAM-11/etc/bashrc b/OpenFOAM-11/etc/bashrc
+--- a/OpenFOAM-11/etc/bashrc	2022-07-11 20:18:29.000000000 +0900
++++ b/OpenFOAM-11/etc/bashrc	2023-01-16 14:15:04.000000000 +0900
+@@ -62,7 +62,7 @@ export WM_COMPILER_TYPE=system
+ 
+ #- Compiler:
+ #    WM_COMPILER = Gcc | Gcc48 ... Gcc62 | Clang | Icx
+-export WM_COMPILER=Gcc
++export WM_COMPILER=Fujitsu
+ unset WM_COMPILER_ARCH WM_COMPILER_LIB_ARCH
+ 
+ #- Memory addressing:
+diff -uprN a/OpenFOAM-11/src/OpenFOAM/fields/GeometricFields/GeometricField/GeometricField.C b/OpenFOAM-11/src/OpenFOAM/fields/GeometricFields/GeometricField/GeometricField.C
+--- a/OpenFOAM-11/src/OpenFOAM/fields/GeometricFields/GeometricField/GeometricField.C	2023-01-16 12:59:20.000000000 +0900
++++ b/OpenFOAM-11/src/OpenFOAM/fields/GeometricFields/GeometricField/GeometricField.C	2023-01-16 14:21:44.000000000 +0900
+@@ -440,7 +440,7 @@ Foam::GeometricField<Type, PatchField, G
+     timeIndex_(gf.timeIndex()),
+     field0Ptr_(nullptr),
+     fieldPrevIterPtr_(nullptr),
+-    boundaryField_(*this, gf.boundaryField_)
++    boundaryField_(*this, move(gf.boundaryField_))
+ {
+     if (debug)
+     {
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,32 @@
++#------------------------------------------------------------------------------
++# Fujitsu compiler - a clang variant
++SUFFIXES += .c
++
++cDBUG       =
++cOPT        = -O2
++cWARN       = -Wall $(FOAM_EXTRA_CFLAGS)
++
++ifeq ($(WM_CC),fccpx)
++cc          = fccpx -Nclang
++else
++cc          = fcc -Nclang
++endif
++
++cARCH       = -m64 -march=armv8.2-a+sve -mcpu=a64fx
++
++# Compile option is non-mandatory, but must be non-empty
++sinclude $(DEFAULT_RULES)/c$(WM_COMPILE_OPTION)
++
++cFLAGS      = $(cARCH) $(GFLAGS) $(cWARN) $(cOPT) $(cDBUG) $(LIB_HEADER_DIRS) -fPIC
++
++ctoo        = $(WM_SCHEDULER) $(cc) $(cFLAGS) -c $< -o $@
++
++INK_LIBS   = $(cDBUG)
++
++LINKLIBSO   = $(cc) $(cARCH) -shared
++
++ifeq ($(WM_CC),fccpx)
++LINKEXE     = $(cc) $(cARCH) -Xlinker --add-needed -Xlinker -z -Xlinker nodefs -Wl,-rpath-link=$(LD_LIBRARY_PATH)
++else
++LINKEXE     = $(cc) $(cARCH) -Xlinker --add-needed -Xlinker -z -Xlinker nodefs
++endif
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,50 @@
++#------------------------------------------------------------------------------
++# Fujitsu compiler - a clang variant
++
++SUFFIXES += .C .cc .cpp .cxx
++
++c++DBUG     =
++c++OPT      = -O2
++ptFLAGS     = -DNoRepository -ftemplate-depth-100
++
++# - Standard warnings
++# - Less restrictive warnings (may be needed for flex++, CGAL, etc.)
++
++c++WARN     = \
++    -Wall -Wextra -Wold-style-cast \
++    -Wnon-virtual-dtor -Wno-unused-parameter -Wno-invalid-offsetof \
++    -Wno-undefined-var-template \
++    -Wno-unknown-warning-option \
++    $(FOAM_EXTRA_CXXFLAGS)
++
++c++LESSWARN = \
++    -Wno-old-style-cast -Wno-unused-local-typedefs \
++    -Wno-tautological-undefined-compare -Wno-shift-negative-value \
++    -Wno-null-pointer-arithmetic
++
++ifeq ($(WM_CXX),FCCpx)
++CC          = FCCpx -Nclang -std=c++14
++else
++CC          = FCC -Nclang -std=c++14
++endif
++
++c++ARCH     = -m64 -march=armv8.2-a+sve -mcpu=a64fx
++
++include $(DEFAULT_RULES)/c++$(WM_COMPILE_OPTION)
++
++c++FLAGS    = $(c++ARCH) $(GFLAGS) $(c++WARN) $(c++OPT) $(c++DBUG) $(ptFLAGS) $(LIB_HEADER_DIRS) -fPIC
++
++Ctoo        = $(WM_SCHEDULER) $(CC) $(c++FLAGS) -c $< -o $@
++cxxtoo      = $(Ctoo)
++cctoo       = $(Ctoo)
++cpptoo      = $(Ctoo)
++
++LINK_LIBS   = $(c++DBUG)
++
++LINKLIBSO   = $(CC) $(c++FLAGS) -shared $(FOAM_EXTRA_LDFLAGS)
++
++ifeq ($(WM_CXX),FCCpx)
++LINKEXE     = $(CC) $(c++FLAGS) -Xlinker --add-needed -Wl,-rpath-link=$(LD_LIBRARY_PATH)
++else
++LINKEXE     = $(CC) $(c++FLAGS) -Xlinker --add-needed
++endif
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Debug b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Debug
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Debug	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Debug	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,2 @@
++c++DBUG     = -g -DFULLDEBUG
++c++OPT      = -O0
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cDebug b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cDebug
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cDebug	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cDebug	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,2 @@
++cDBUG       = -g -DFULLDEBUG
++cOPT        = -O0
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Opt b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Opt
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Opt	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Opt	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,2 @@
++c++DBUG     =
++c++OPT      = -O3
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cOpt b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cOpt
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cOpt	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cOpt	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,2 @@
++cDBUG       =
++cOPT        = -O3
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Prof b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Prof
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Prof	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/c++Prof	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,2 @@
++c++DBUG    = -pg
++c++OPT     = -O2
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cProf b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cProf
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cProf	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/cProf	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,2 @@
++cDBUG       = -pg
++cOPT        = -O2
+diff -uprN a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/general b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/general
+--- a/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/general	1970-01-01 09:00:00.000000000 +0900
++++ b/OpenFOAM-11/wmake/rules/linuxArm64Fujitsu/general	2022-12-20 10:17:56.000000000 +0900
+@@ -0,0 +1,18 @@
++CPP        = cpp -traditional-cpp $(GFLAGS)
++
++PROJECT_LIBS = -l$(WM_PROJECT) -ldl
++
++include $(GENERAL_RULES)/standard
++## include $(GENERAL_RULES)/Clang/openmp
++
++# Fujitsu-specific
++# ----
++COMP_OPENMP = -DUSE_OMP -fopenmp
++LINK_OPENMP = -lfjomp
++# ----
++# Or disable
++# include $(GENERAL_RULES)/no-openmp
++# ----
++
++include $(DEFAULT_RULES)/c
++include $(DEFAULT_RULES)/c++

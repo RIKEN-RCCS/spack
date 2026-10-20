@@ -1,0 +1,57 @@
+--- a/src_phase_3d/b_XC_Potential.F90	2023-06-28 09:27:13.000000000 +0900
++++ b/src_phase_3d/b_XC_Potential.F90	2024-01-15 14:18:59.000000000 +0900
+@@ -3635,11 +3635,22 @@ subroutine ex_ggapw91_3D(nspin,ispin,chg
+   real(kind=DP), parameter :: a2 = 0.27430d0
+   real(kind=DP), parameter :: a3 = 0.15084d0
+   real(kind=DP), parameter :: a4 = 100.0d0
+-  real(kind=DP), parameter :: ax = -0.7385588d0
++
++! === KT_mod === 2014/11/25
++!!!  real(kind=DP), parameter :: ax = -0.7385588d0
++       real(kind=DP), parameter ::  ax = -0.7385587663820224d0
++!=============== 2014/11/25
++
+   real(kind=DP), parameter :: a  =  7.7956d0
+   real(kind=DP), parameter :: b1 =  0.004d0
+-  real(kind=DP), parameter :: thrd   = 0.33333333333d0
+-  real(kind=DP), parameter :: thrd4  = 1.333333333333333d0
++
++! === KT_mod === 2014/11/25
++!  real(kind=DP), parameter :: thrd   = 0.33333333333d0
++!  real(kind=DP), parameter :: thrd4  = 1.333333333333333d0
++  real(kind=DP), parameter :: thrd   = 0.33333333333333333333333d0
++  real(kind=DP), parameter :: thrd4  = 1.33333333333333333333333d0
++!=============== 2014/11/25
++
+   real(kind=DP), parameter :: thpith = 3.0936677262801d0
+ 
+ !---- Spin dependency
+@@ -3755,8 +3766,12 @@ subroutine cr_ggapw91_3D(nspin,ispin,chg
+   real(kind=DP), parameter :: c5  =  0.472d0,       c6  =  7.389d-2
+   real(kind=DP), parameter :: a4  = 100.d0
+ 
+-  real(kind=DP), parameter :: thrd   = 0.333333333333d0
+-  real(kind=DP), parameter :: sixth7 = 1.1666666666666666d0
++! ==== KT_mod ==== 2014/11/25
++!  real(kind=DP), parameter :: thrd   = 0.333333333333d0
++!  real(kind=DP), parameter :: sixth7 = 1.1666666666666666d0
++  real(kind=DP), parameter :: thrd   = 0.3333333333333333333333d0
++  real(kind=DP), parameter :: sixth7 = 1.1666666666666666666666d0
++! ================= 2014/11/25
+ 
+   integer       :: is,i
+   real(kind=DP) :: facw,bet,delt,exc1,g,g3,g4,facpon,d,dd,rs,fk,sk,t,s&
+@@ -3772,7 +3787,12 @@ subroutine cr_ggapw91_3D(nspin,ispin,chg
+     call timer_sta(765)
+ #endif
+   facw = ispin
+-  bet = xnu*cc0
++
++! === KT_mod === 2014/11/25
++!  bet = xnu*cc0
++  bet=0.06672455060314922d0
++! ============== 2014/11/25
++
+   delt = 2.d0*alf/bet
+ 
+ !---- Spin dependency

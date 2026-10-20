@@ -1,0 +1,20 @@
+--- a/src_phase/m_ES_nonlocal.F90	2023-06-28 09:27:11.000000000 +0900
++++ b/src_phase/m_ES_nonlocal.F90	2024-01-15 13:51:58.000000000 +0900
+@@ -1317,7 +1317,7 @@ module m_ES_nonlocal
+             tmp = tmp * iwei(ia)
+ !            do ig=1,iba(ik)
+             do ig=ibl1,ibl2
+-              ctmp  = (i1**-(mil))*wkexp(ig,ia)*snl(ig,lmtt1,iksnl)
++              ctmp  = (i1**(-mil))*wkexp(ig,ia)*snl(ig,lmtt1,iksnl)
+               AtaulmaG(ig,lmta2,ik,1) = AtaulmaG(ig,lmta2,ik,1) + tmp *  real(ctmp)
+               AtaulmaG(ig,lmta2,ik,2) = AtaulmaG(ig,lmta2,ik,2) + tmp * dimag(ctmp)
+             enddo
+@@ -1325,7 +1325,7 @@ module m_ES_nonlocal
+               tmp = q(lmt1,lmt2,it)*iwei(ia)
+ !              do ig=1,iba(ik)
+               do ig=ibl1,ibl2
+-                ctmp  = (i1**-(mil))*wkexp(ig,ia)*snl(ig,lmtt1,iksnl)
++                ctmp  = (i1**(-mil))*wkexp(ig,ia)*snl(ig,lmtt1,iksnl)
+                 BtaulmaG(ig,icount,ik,1) = BtaulmaG(ig,icount,ik,1) + tmp *  real(ctmp)
+                 BtaulmaG(ig,icount,ik,2) = BtaulmaG(ig,icount,ik,2) + tmp * dimag(ctmp)
+               enddo

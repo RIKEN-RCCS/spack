@@ -1,0 +1,33 @@
+diff -r e351ddfc6d76 -r b79633e7bd06 wmake/rules/General/Clang/c++
+--- a/wmake/rules/General/Clang/c++     Mon Aug 04 17:21:35 2025 +0900
++++ b/wmake/rules/General/Clang/c++     Thu Apr 16 09:50:48 2026 +0900
+@@ -8,7 +8,7 @@
+ c++ARCH    :=
+ c++DBUG    :=
+ c++OPT     := -O2
+-ptFLAGS    := -DNoRepository -ftemplate-depth-100
++ptFLAGS    := -DNoRepository -ftemplate-depth-1024
+
+ c++WARN     = \
+     -Wall -Wextra -Wold-style-cast \
+diff -r e053c042b4ba -r e44af996862c src/OpenFOAM/db/IOstreams/IOstreams/IOstream.H
+--- a/src/OpenFOAM/db/IOstreams/IOstreams/IOstream.H	Tue Jul 22 12:01:25 2025 +0900
++++ b/src/OpenFOAM/db/IOstreams/IOstreams/IOstream.H	Sun Aug 03 22:00:08 2025 +0900
+@@ -520,7 +520,7 @@
+ void inputLoop(IS& is, Type& arg1, Args&&... args)
+ {
+     is >> arg1;
+-    if constexpr (sizeof...(args))
++    if constexpr(static_cast<bool>(sizeof...(args)))
+     {
+         Detail::inputLoop(is, std::forward<Args>(args)...);
+     }
+@@ -531,7 +531,7 @@
+ void outputLoop(OS& os, const Type& arg1, Args&&... args)
+ {
+     os << arg1;
+-    if constexpr (sizeof...(args))
++    if constexpr(static_cast<bool> (sizeof...(args)))
+     {
+         Detail::outputLoop(os, std::forward<Args>(args)...);
+     }

@@ -1,0 +1,27 @@
+From 6fcf1c14cc37dce5b7f418cb563c3aee9ebcfca1 Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Sun, 15 Feb 2026 00:13:33 +0900
+Subject: [PATCH] listed_forces: add a missing num_threads() OpenMP clause
+
+Otherwise when running without MPI, threaded_bonding_t
+might create lots of threads and kill the performance.
+---
+ src/gromacs/listed_forces/manage_threading.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/gromacs/listed_forces/manage_threading.cpp b/src/gromacs/listed_forces/manage_threading.cpp
+index 53c7a6295c..6aafd1e63e 100644
+--- a/src/gromacs/listed_forces/manage_threading.cpp
++++ b/src/gromacs/listed_forces/manage_threading.cpp
+@@ -455,7 +455,7 @@ bonded_threading_t::bonded_threading_t(const int numThreads,
+     }
+ 
+     centersOfMassScaledBuffers_.resize(numThreads);
+-#pragma omp parallel for schedule(static)
++#pragma omp parallel for schedule(static) num_threads(numThreads)
+     for (int thread = 0; thread < numThreads; thread++)
+     {
+         auto& bufs = centersOfMassScaledBuffers_[thread];
+-- 
+2.43.5
+

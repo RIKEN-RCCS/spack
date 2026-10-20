@@ -1,0 +1,27 @@
+From c5ff71eaf579cafadd6e68604765d889ac5b83cc Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Thu, 21 Dec 2023 16:32:31 +0900
+Subject: [PATCH 7/9] tune_pme-2024.2
+
+---
+ src/gromacs/tools/tune_pme.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/gromacs/tools/tune_pme.cpp b/src/gromacs/tools/tune_pme.cpp
+index e9f8f49d02..10bf590313 100644
+--- a/src/gromacs/tools/tune_pme.cpp
++++ b/src/gromacs/tools/tune_pme.cpp
+@@ -708,8 +708,8 @@ static void check_mdrun_works(gmx_bool    bThreads,
+     {
+         snew(command,
+              std::strlen(cmd_mpirun) + std::strlen(cmd_np) + std::strlen(cmd_mdrun)
+-                     + std::strlen(filename) + 50);
+-        sprintf(command, "%s%s%s -version -maxh 0.001 1> %s 2>&1", cmd_mpirun, cmd_np, cmd_mdrun, filename);
++                     + std::strlen(filename) + 100);
++        sprintf(command, "%s%s bash -c 'if [ $PMIX_RANK -eq 0 ]; then exec > %s; exec 2>&1; fi; exec %s -version -maxh 0.001'", cmd_mpirun, cmd_np, filename, cmd_mdrun);
+     }
+     fprintf(stdout, "Trying '%s' ... ", command);
+     make_backup(filename);
+-- 
+2.39.3
+

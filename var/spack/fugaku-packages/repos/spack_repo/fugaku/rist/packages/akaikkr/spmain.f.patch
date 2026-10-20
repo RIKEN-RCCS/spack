@@ -1,0 +1,18 @@
+--- cpa2002v010/source/spmain.f	2021-12-07 15:45:39.000000000 +0900
++++ /home/rist-v/u02540/Archive/AkaiKKR/spmain.f	2022-01-19 16:39:45.000000000 +0900
+@@ -538,11 +538,13 @@ c         depending on the system.
+       nthopt=nthread
+ c
+ c     --- for Ohtaka system of ISSP --------------
+-c     nthopt=0.032d0*dble(msiz)*sqrt(dble(nk*mse))
++      nthopt=0.032d0*dble(msiz)*sqrt(dble(nk*mse))
+ c     --------------------------------------------
+ c
+ c     ---  for fx700, fx1000 including FUGAKU ----
+-      if(nthopt .gt. nthread-2) nthopt=nthopt-2
++c          the following procedure is not necessary any more
++c          because it is already taken into account.
++c     if(nthopt .gt. nthread-2) nthopt=nthopt-2
+ c     --------------------------------------------
+ c
+       nthopt=min(nthopt,nthread)

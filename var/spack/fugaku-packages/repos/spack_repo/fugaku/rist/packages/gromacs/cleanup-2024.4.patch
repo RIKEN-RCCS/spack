@@ -1,0 +1,594 @@
+From 1df1e8684e532823faac76ac12354915af1dcd47 Mon Sep 17 00:00:00 2001
+From: Andrey Alekseenko <al42and@gmail.com>
+Date: Mon, 29 Jul 2024 07:38:09 +0000
+Subject: [PATCH 1/7] Remove nonexistent include directories
+
+Clang 19 plans to introduce `-Wmissing-include-dirs` warning, and we
+trigger it a lot.
+
+Still leave the code commented-out to keep the future
+conversion to `OBJECT` targets easier.
+
+As an added benefit, `VERBOSE=1 make` is now less noisy.
+---
+ src/gromacs/analysisdata/CMakeLists.txt         | 3 +--
+ src/gromacs/applied_forces/CMakeLists.txt       | 3 +--
+ src/gromacs/commandline/CMakeLists.txt          | 3 +--
+ src/gromacs/compat/CMakeLists.txt               | 3 +--
+ src/gromacs/coordinateio/CMakeLists.txt         | 5 ++---
+ src/gromacs/correlationfunctions/CMakeLists.txt | 3 +--
+ src/gromacs/domdec/CMakeLists.txt               | 3 +--
+ src/gromacs/energyanalysis/CMakeLists.txt       | 4 ++--
+ src/gromacs/essentialdynamics/CMakeLists.txt    | 3 +--
+ src/gromacs/ewald/CMakeLists.txt                | 3 +--
+ src/gromacs/fft/CMakeLists.txt                  | 3 +--
+ src/gromacs/fileio/CMakeLists.txt               | 3 +--
+ src/gromacs/gmxana/CMakeLists.txt               | 3 +--
+ src/gromacs/gmxlib/CMakeLists.txt               | 3 +--
+ src/gromacs/gmxpreprocess/CMakeLists.txt        | 3 +--
+ src/gromacs/gpu_utils/CMakeLists.txt            | 3 +--
+ src/gromacs/hardware/CMakeLists.txt             | 3 +--
+ src/gromacs/imd/CMakeLists.txt                  | 3 +--
+ src/gromacs/listed_forces/CMakeLists.txt        | 3 +--
+ src/gromacs/mdlib/CMakeLists.txt                | 3 +--
+ src/gromacs/mdrun/CMakeLists.txt                | 3 +--
+ src/gromacs/mdrunutility/CMakeLists.txt         | 3 +--
+ src/gromacs/mdspan/CMakeLists.txt               | 4 ++--
+ src/gromacs/mdtypes/CMakeLists.txt              | 3 +--
+ src/gromacs/mimic/CMakeLists.txt                | 3 +--
+ src/gromacs/modularsimulator/CMakeLists.txt     | 4 ++--
+ src/gromacs/nbnxm/CMakeLists.txt                | 3 +--
+ src/gromacs/onlinehelp/CMakeLists.txt           | 3 +--
+ src/gromacs/options/CMakeLists.txt              | 4 ++--
+ src/gromacs/random/CMakeLists.txt               | 3 +--
+ src/gromacs/restraint/CMakeLists.txt            | 3 +--
+ src/gromacs/selection/CMakeLists.txt            | 3 +--
+ src/gromacs/statistics/CMakeLists.txt           | 3 +--
+ src/gromacs/swap/CMakeLists.txt                 | 3 +--
+ src/gromacs/tables/CMakeLists.txt               | 3 +--
+ src/gromacs/tools/CMakeLists.txt                | 3 +--
+ src/gromacs/trajectory/CMakeLists.txt           | 3 +--
+ src/gromacs/trajectoryanalysis/CMakeLists.txt   | 3 +--
+ 38 files changed, 43 insertions(+), 77 deletions(-)
+
+diff --git a/src/gromacs/analysisdata/CMakeLists.txt b/src/gromacs/analysisdata/CMakeLists.txt
+index 29e8f5334a..ae40172ec0 100644
+--- a/src/gromacs/analysisdata/CMakeLists.txt
++++ b/src/gromacs/analysisdata/CMakeLists.txt
+@@ -45,8 +45,7 @@ target_link_libraries(analysisdata PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(analysisdata PUBLIC
+-target_include_directories(analysisdata INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(analysisdata PUBLIC
+ target_link_libraries(analysisdata INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/applied_forces/CMakeLists.txt b/src/gromacs/applied_forces/CMakeLists.txt
+index 53e6b91d70..4f538704db 100644
+--- a/src/gromacs/applied_forces/CMakeLists.txt
++++ b/src/gromacs/applied_forces/CMakeLists.txt
+@@ -44,8 +44,7 @@ target_link_libraries(applied_forces PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(applied_forces PUBLIC
+-target_include_directories(applied_forces INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(applied_forces PUBLIC
+ target_link_libraries(applied_forces INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/commandline/CMakeLists.txt b/src/gromacs/commandline/CMakeLists.txt
+index 334b2b5352..761101cf7b 100644
+--- a/src/gromacs/commandline/CMakeLists.txt
++++ b/src/gromacs/commandline/CMakeLists.txt
+@@ -45,8 +45,7 @@ target_link_libraries(commandline PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(commandline PUBLIC
+-target_include_directories(commandline INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(commandline PUBLIC
+ target_link_libraries(commandline INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/compat/CMakeLists.txt b/src/gromacs/compat/CMakeLists.txt
+index e7cdc1d14f..a740e718e3 100644
+--- a/src/gromacs/compat/CMakeLists.txt
++++ b/src/gromacs/compat/CMakeLists.txt
+@@ -39,8 +39,7 @@ target_link_libraries(compat PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(compat PUBLIC
+-target_include_directories(compat INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(compat PUBLIC
+ target_link_libraries(compat INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/coordinateio/CMakeLists.txt b/src/gromacs/coordinateio/CMakeLists.txt
+index 9cf10a1ef3..30a84baa2e 100644
+--- a/src/gromacs/coordinateio/CMakeLists.txt
++++ b/src/gromacs/coordinateio/CMakeLists.txt
+@@ -43,9 +43,8 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${COORDINATEIO_SOURCES} PARENT_SCOP
+ #)
+ 
+ # Public interface for modules, including dependencies and interfaces
+-#target_include_directories(coordinateio PUBLIC
+-target_include_directories(coordinateio INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#target_include_directories(coordinateio PUBLIC\
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(coordinateio PUBLIC
+ target_link_libraries(coordinateio INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/correlationfunctions/CMakeLists.txt b/src/gromacs/correlationfunctions/CMakeLists.txt
+index 0a9a02f110..9a5c313c62 100644
+--- a/src/gromacs/correlationfunctions/CMakeLists.txt
++++ b/src/gromacs/correlationfunctions/CMakeLists.txt
+@@ -48,8 +48,7 @@ target_link_libraries(correlationfunctions PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(correlationfunctions PUBLIC
+-target_include_directories(correlationfunctions INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(correlationfunctions PUBLIC
+ target_link_libraries(correlationfunctions INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/domdec/CMakeLists.txt b/src/gromacs/domdec/CMakeLists.txt
+index 56d0d7c4d2..833a351789 100644
+--- a/src/gromacs/domdec/CMakeLists.txt
++++ b/src/gromacs/domdec/CMakeLists.txt
+@@ -55,8 +55,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${DOMDEC_SOURCES} ${DOMDEC_GPU_SOUR
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(domdec PUBLIC
+-target_include_directories(domdec INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(domdec PUBLIC
+ target_link_libraries(domdec INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/energyanalysis/CMakeLists.txt b/src/gromacs/energyanalysis/CMakeLists.txt
+index 312755f607..70c5455e43 100644
+--- a/src/gromacs/energyanalysis/CMakeLists.txt
++++ b/src/gromacs/energyanalysis/CMakeLists.txt
+@@ -48,8 +48,8 @@ target_compile_definitions(energyanalysis PRIVATE HAVE_CONFIG_H)
+ target_link_libraries(energyanalysis PRIVATE common)
+ 
+ # Public interface for modules, including dependencies and interfaces
+-target_include_directories(energyanalysis PUBLIC
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#target_include_directories(energyanalysis PUBLIC
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ target_link_libraries(energyanalysis PUBLIC
+                       fileio
+                       legacy_api
+diff --git a/src/gromacs/essentialdynamics/CMakeLists.txt b/src/gromacs/essentialdynamics/CMakeLists.txt
+index 173d8af5be..cda49db86a 100644
+--- a/src/gromacs/essentialdynamics/CMakeLists.txt
++++ b/src/gromacs/essentialdynamics/CMakeLists.txt
+@@ -45,8 +45,7 @@ target_link_libraries(essentialdynamics PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(essentialdynamics PUBLIC
+-target_include_directories(essentialdynamics INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(essentialdynamics PUBLIC
+ target_link_libraries(essentialdynamics INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/ewald/CMakeLists.txt b/src/gromacs/ewald/CMakeLists.txt
+index 5e3a9a1c35..b56629cf2b 100644
+--- a/src/gromacs/ewald/CMakeLists.txt
++++ b/src/gromacs/ewald/CMakeLists.txt
+@@ -141,8 +141,7 @@ target_link_libraries(ewald PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(ewald PUBLIC
+-target_include_directories(ewald INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(ewald PUBLIC
+ target_link_libraries(ewald INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/fft/CMakeLists.txt b/src/gromacs/fft/CMakeLists.txt
+index 18ce71a9bb..03b6043955 100644
+--- a/src/gromacs/fft/CMakeLists.txt
++++ b/src/gromacs/fft/CMakeLists.txt
+@@ -118,8 +118,7 @@ target_link_libraries(fft PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(fft PUBLIC
+-target_include_directories(fft INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(fft PUBLIC
+ target_link_libraries(fft INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/fileio/CMakeLists.txt b/src/gromacs/fileio/CMakeLists.txt
+index 8b35bbf24e..1643b7ebba 100644
+--- a/src/gromacs/fileio/CMakeLists.txt
++++ b/src/gromacs/fileio/CMakeLists.txt
+@@ -62,8 +62,7 @@ gmx_target_interface_warning_suppression(fileio "-Wno-cast-function-type-strict"
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(fileio PUBLIC
+-target_include_directories(fileio INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(fileio PUBLIC
+ target_link_libraries(fileio INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/gmxana/CMakeLists.txt b/src/gromacs/gmxana/CMakeLists.txt
+index c91ac407fb..393603803d 100644
+--- a/src/gromacs/gmxana/CMakeLists.txt
++++ b/src/gromacs/gmxana/CMakeLists.txt
+@@ -44,8 +44,7 @@ target_link_libraries(gmxana PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(gmxana PUBLIC
+-target_include_directories(gmxana INTERFACE
+-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(gmxana PUBLIC
+ target_link_libraries(gmxana INTERFACE
+         legacy_api
+diff --git a/src/gromacs/gmxlib/CMakeLists.txt b/src/gromacs/gmxlib/CMakeLists.txt
+index 1c39ce44de..3176ea8234 100644
+--- a/src/gromacs/gmxlib/CMakeLists.txt
++++ b/src/gromacs/gmxlib/CMakeLists.txt
+@@ -52,8 +52,7 @@ target_link_libraries(gmxlib PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(gmxlib PUBLIC
+-target_include_directories(gmxlib INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(gmxlib PUBLIC
+ target_link_libraries(gmxlib INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/gmxpreprocess/CMakeLists.txt b/src/gromacs/gmxpreprocess/CMakeLists.txt
+index a422f2b9be..5863fa7af3 100644
+--- a/src/gromacs/gmxpreprocess/CMakeLists.txt
++++ b/src/gromacs/gmxpreprocess/CMakeLists.txt
+@@ -48,8 +48,7 @@ target_link_libraries(gmxpreprocess PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(gmxpreprocess PUBLIC
+-target_include_directories(gmxpreprocess INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(gmxpreprocess PUBLIC
+ target_link_libraries(gmxpreprocess INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/gpu_utils/CMakeLists.txt b/src/gromacs/gpu_utils/CMakeLists.txt
+index ed3417fa70..0f5f8711cf 100644
+--- a/src/gromacs/gpu_utils/CMakeLists.txt
++++ b/src/gromacs/gpu_utils/CMakeLists.txt
+@@ -97,8 +97,7 @@ target_link_libraries(gpu_utils PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(gpu_utils PUBLIC
+-target_include_directories(gpu_utils INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(gpu_utils PUBLIC
+ target_link_libraries(gpu_utils INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/hardware/CMakeLists.txt b/src/gromacs/hardware/CMakeLists.txt
+index 9c2b0ff127..939f9e73ff 100644
+--- a/src/gromacs/hardware/CMakeLists.txt
++++ b/src/gromacs/hardware/CMakeLists.txt
+@@ -79,8 +79,7 @@ target_link_libraries(hardware PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(hardware PUBLIC
+-target_include_directories(hardware INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(hardware PUBLIC
+ target_link_libraries(hardware INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/imd/CMakeLists.txt b/src/gromacs/imd/CMakeLists.txt
+index 6c04818690..ffd55d882f 100644
+--- a/src/gromacs/imd/CMakeLists.txt
++++ b/src/gromacs/imd/CMakeLists.txt
+@@ -44,8 +44,7 @@ target_link_libraries(imd PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(imd PUBLIC
+-target_include_directories(imd INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(imd PUBLIC
+ target_link_libraries(imd INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/listed_forces/CMakeLists.txt b/src/gromacs/listed_forces/CMakeLists.txt
+index 4760c08e8e..bb67c4e186 100644
+--- a/src/gromacs/listed_forces/CMakeLists.txt
++++ b/src/gromacs/listed_forces/CMakeLists.txt
+@@ -75,8 +75,7 @@ target_link_libraries(listed_forces PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(listed_forces PUBLIC
+-target_include_directories(listed_forces INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(listed_forces PUBLIC
+ target_link_libraries(listed_forces INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/mdlib/CMakeLists.txt b/src/gromacs/mdlib/CMakeLists.txt
+index 8969ea0b28..550b4d9947 100644
+--- a/src/gromacs/mdlib/CMakeLists.txt
++++ b/src/gromacs/mdlib/CMakeLists.txt
+@@ -109,8 +109,7 @@ target_link_libraries(mdlib PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(mdlib PUBLIC
+-target_include_directories(mdlib INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(mdlib PUBLIC
+ target_link_libraries(mdlib INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/mdrun/CMakeLists.txt b/src/gromacs/mdrun/CMakeLists.txt
+index 63c40c111f..80dd22540f 100644
+--- a/src/gromacs/mdrun/CMakeLists.txt
++++ b/src/gromacs/mdrun/CMakeLists.txt
+@@ -61,8 +61,7 @@ target_link_libraries(mdrun PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(mdrun PUBLIC
+-target_include_directories(mdrun INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(mdrun PUBLIC
+ target_link_libraries(mdrun INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/mdrunutility/CMakeLists.txt b/src/gromacs/mdrunutility/CMakeLists.txt
+index 8e87523d60..f89b0fb3c1 100644
+--- a/src/gromacs/mdrunutility/CMakeLists.txt
++++ b/src/gromacs/mdrunutility/CMakeLists.txt
+@@ -52,8 +52,7 @@ target_link_libraries(mdrunutility PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(mdrunutility PUBLIC
+-target_include_directories(mdrunutility INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(mdrunutility PUBLIC
+ target_link_libraries(mdrunutility INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/mdspan/CMakeLists.txt b/src/gromacs/mdspan/CMakeLists.txt
+index 72c63ce128..c60b897926 100644
+--- a/src/gromacs/mdspan/CMakeLists.txt
++++ b/src/gromacs/mdspan/CMakeLists.txt
+@@ -35,8 +35,8 @@
+ add_library(mdspan INTERFACE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+-target_include_directories(mdspan INTERFACE
+-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++# target_include_directories(mdspan INTERFACE
++#         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ 
+ if (BUILD_TESTING)
+     add_subdirectory(tests)
+diff --git a/src/gromacs/mdtypes/CMakeLists.txt b/src/gromacs/mdtypes/CMakeLists.txt
+index b6e57941c5..c794c9c2ba 100644
+--- a/src/gromacs/mdtypes/CMakeLists.txt
++++ b/src/gromacs/mdtypes/CMakeLists.txt
+@@ -82,8 +82,7 @@ target_link_libraries(mdtypes PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(mdtypes PUBLIC
+-target_include_directories(mdtypes INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(mdtypes PUBLIC
+ target_link_libraries(mdtypes INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/mimic/CMakeLists.txt b/src/gromacs/mimic/CMakeLists.txt
+index b54a6b10bf..223c5eec79 100644
+--- a/src/gromacs/mimic/CMakeLists.txt
++++ b/src/gromacs/mimic/CMakeLists.txt
+@@ -54,8 +54,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${MIMIC_SOURCES} PARENT_SCOPE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(mimic PUBLIC
+-target_include_directories(mimic INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(mimic PUBLIC
+ target_link_libraries(mimic INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/modularsimulator/CMakeLists.txt b/src/gromacs/modularsimulator/CMakeLists.txt
+index 55717ffced..59ee2097cd 100644
+--- a/src/gromacs/modularsimulator/CMakeLists.txt
++++ b/src/gromacs/modularsimulator/CMakeLists.txt
+@@ -75,8 +75,8 @@ target_link_libraries(modularsimulator PRIVATE
+ )
+ 
+ # Public interface for modules, including dependencies and interfaces
+-target_include_directories(modularsimulator PUBLIC
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#target_include_directories(modularsimulator PUBLIC
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ 
+ if (BUILD_SHARED_LIBS)
+     set_target_properties(modularsimulator PROPERTIES POSITION_INDEPENDENT_CODE ON)
+diff --git a/src/gromacs/nbnxm/CMakeLists.txt b/src/gromacs/nbnxm/CMakeLists.txt
+index 9a9bce7aea..0d8af47299 100644
+--- a/src/gromacs/nbnxm/CMakeLists.txt
++++ b/src/gromacs/nbnxm/CMakeLists.txt
+@@ -97,8 +97,7 @@ target_link_libraries(nbnxm PRIVATE
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(nbnxm PUBLIC
+-target_include_directories(nbnxm INTERFACE
+-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(nbnxm PUBLIC
+ target_link_libraries(nbnxm INTERFACE
+         legacy_api
+diff --git a/src/gromacs/onlinehelp/CMakeLists.txt b/src/gromacs/onlinehelp/CMakeLists.txt
+index f5871b6413..a5467f39be 100644
+--- a/src/gromacs/onlinehelp/CMakeLists.txt
++++ b/src/gromacs/onlinehelp/CMakeLists.txt
+@@ -44,8 +44,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${ONLINEHELP_SOURCES} PARENT_SCOPE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(onlinehelp PUBLIC
+-target_include_directories(onlinehelp INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(onlinehelp PUBLIC
+ target_link_libraries(onlinehelp INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/options/CMakeLists.txt b/src/gromacs/options/CMakeLists.txt
+index 54d512f4f9..776ee0c4ba 100644
+--- a/src/gromacs/options/CMakeLists.txt
++++ b/src/gromacs/options/CMakeLists.txt
+@@ -58,8 +58,8 @@ target_link_libraries(options PRIVATE
+                 )
+ 
+ # Public interface for modules, including dependencies and interfaces
+-target_include_directories(options PUBLIC
+-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#target_include_directories(options PUBLIC
++#        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ 
+ target_link_libraries(options PRIVATE common)
+ 
+diff --git a/src/gromacs/random/CMakeLists.txt b/src/gromacs/random/CMakeLists.txt
+index 161fd06fa6..65161fd0e1 100644
+--- a/src/gromacs/random/CMakeLists.txt
++++ b/src/gromacs/random/CMakeLists.txt
+@@ -44,8 +44,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${RANDOM_SOURCES} PARENT_SCOPE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(random PUBLIC
+-target_include_directories(random INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(random PUBLIC
+ target_link_libraries(random INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/restraint/CMakeLists.txt b/src/gromacs/restraint/CMakeLists.txt
+index 394c3ad44f..0f47c21d41 100644
+--- a/src/gromacs/restraint/CMakeLists.txt
++++ b/src/gromacs/restraint/CMakeLists.txt
+@@ -44,8 +44,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${RESTRAINT_SOURCES} PARENT_SCOPE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(restraint PUBLIC
+-target_include_directories(restraint INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(restraint PUBLIC
+ target_link_libraries(restraint INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/selection/CMakeLists.txt b/src/gromacs/selection/CMakeLists.txt
+index 193ac47bf5..47db57635a 100644
+--- a/src/gromacs/selection/CMakeLists.txt
++++ b/src/gromacs/selection/CMakeLists.txt
+@@ -73,8 +73,7 @@ set(libgromacs_object_library_dependencies ${libgromacs_object_library_dependenc
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(selection PUBLIC
+-target_include_directories(selection INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(selection PUBLIC
+ target_link_libraries(selection INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/statistics/CMakeLists.txt b/src/gromacs/statistics/CMakeLists.txt
+index ba5ba967b7..8e798fc0e0 100644
+--- a/src/gromacs/statistics/CMakeLists.txt
++++ b/src/gromacs/statistics/CMakeLists.txt
+@@ -39,8 +39,7 @@ set(LIBGROMACS_SOURCES
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(statistics PUBLIC
+-target_include_directories(statistics INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(statistics PUBLIC
+ target_link_libraries(statistics INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/swap/CMakeLists.txt b/src/gromacs/swap/CMakeLists.txt
+index ae7b858066..e3ae3dd38a 100644
+--- a/src/gromacs/swap/CMakeLists.txt
++++ b/src/gromacs/swap/CMakeLists.txt
+@@ -44,8 +44,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${SWAP_SOURCES} PARENT_SCOPE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(swap PUBLIC
+-target_include_directories(swap INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(swap PUBLIC
+ target_link_libraries(swap INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/tables/CMakeLists.txt b/src/gromacs/tables/CMakeLists.txt
+index 0c17b5ddc7..5e2df24307 100644
+--- a/src/gromacs/tables/CMakeLists.txt
++++ b/src/gromacs/tables/CMakeLists.txt
+@@ -44,8 +44,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${TABLE_SOURCES} PARENT_SCOPE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(tables PUBLIC
+-target_include_directories(tables INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(tables PUBLIC
+ target_link_libraries(tables INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/tools/CMakeLists.txt b/src/gromacs/tools/CMakeLists.txt
+index 5c85d1ed3b..676ab8ff66 100644
+--- a/src/gromacs/tools/CMakeLists.txt
++++ b/src/gromacs/tools/CMakeLists.txt
+@@ -44,8 +44,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${TOOLS_SOURCES} PARENT_SCOPE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(tools PUBLIC
+-target_include_directories(tools INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(tools PUBLIC
+ target_link_libraries(tools INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/trajectory/CMakeLists.txt b/src/gromacs/trajectory/CMakeLists.txt
+index f2f1bd698e..c8ea748df7 100644
+--- a/src/gromacs/trajectory/CMakeLists.txt
++++ b/src/gromacs/trajectory/CMakeLists.txt
+@@ -44,8 +44,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${TRAJECTORY_SOURCES} PARENT_SCOPE)
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(trajectory PUBLIC
+-target_include_directories(trajectory INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(trajectory PUBLIC
+ target_link_libraries(trajectory INTERFACE
+                       legacy_api
+diff --git a/src/gromacs/trajectoryanalysis/CMakeLists.txt b/src/gromacs/trajectoryanalysis/CMakeLists.txt
+index 3b1189cd68..9734a1e29f 100644
+--- a/src/gromacs/trajectoryanalysis/CMakeLists.txt
++++ b/src/gromacs/trajectoryanalysis/CMakeLists.txt
+@@ -44,8 +44,7 @@ set(LIBGROMACS_SOURCES ${LIBGROMACS_SOURCES} ${TRAJECTORYANALYSIS_SOURCES} PAREN
+ 
+ # Public interface for modules, including dependencies and interfaces
+ #target_include_directories(trajectoryanalysis PUBLIC
+-target_include_directories(trajectoryanalysis INTERFACE
+-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
++#                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
+ #target_link_libraries(trajectoryanalysis PUBLIC
+ target_link_libraries(trajectoryanalysis INTERFACE
+                       legacy_api
+-- 
+2.39.3
+

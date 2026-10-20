@@ -1,0 +1,19 @@
+diff -uprN a/OpenFOAM-v2206/wmake/rules/linuxARM64Fujitsu/c++ b/OpenFOAM-v2206/wmake/rules/linuxARM64Fujitsu/c++
+--- a/OpenFOAM-v2206/wmake/rules/linuxARM64Fujitsu/c++	2022-06-24 23:41:02.000000000 +0900
++++ b/OpenFOAM-v2206/wmake/rules/linuxARM64Fujitsu/c++	2023-01-17 21:32:42.000000000 +0900
+@@ -5,7 +5,7 @@ include $(GENERAL_RULES)/Clang/c++
+ 
+ CC          = FCC$(COMPILER_VERSION) -std=c++14
+ 
+-c++ARCH     = -pthread
++c++ARCH     = -pthread -m64 -march=armv8.2-a+sve -mcpu=a64fx
+ 
+ include $(DEFAULT_RULES)/c++$(WM_COMPILE_OPTION)
+ 
+diff -uprN a/OpenFOAM-v2206/wmake/rules/linuxARM64Fujitsu/c++Opt b/OpenFOAM-v2206/wmake/rules/linuxARM64Fujitsu/c++Opt
+--- a/OpenFOAM-v2206/wmake/rules/linuxARM64Fujitsu/c++Opt	2022-06-24 23:41:02.000000000 +0900
++++ b/OpenFOAM-v2206/wmake/rules/linuxARM64Fujitsu/c++Opt	2023-01-17 21:32:24.000000000 +0900
+@@ -1,2 +1,2 @@
+ c++DBUG     =
+-c++OPT      = -ffp-contract=fast -ffast-math -O3 -funsafe-math-optimizations
++c++OPT      = -O3

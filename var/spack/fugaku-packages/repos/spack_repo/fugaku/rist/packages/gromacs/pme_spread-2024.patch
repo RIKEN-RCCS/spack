@@ -1,0 +1,144 @@
+From 982d479f6e203060d0d35de3956dc5d3a6dec21c Mon Sep 17 00:00:00 2001
+From: Gilles Gouaillardet <gilles@rist.or.jp>
+Date: Thu, 21 Dec 2023 16:31:44 +0900
+Subject: [PATCH 3/6] pme_spread-2024
+
+---
+ src/gromacs/ewald/pme_spread.cpp | 114 ++++++++++++++++++++++++++++++-
+ 1 file changed, 112 insertions(+), 2 deletions(-)
+
+diff --git a/src/gromacs/ewald/pme_spread.cpp b/src/gromacs/ewald/pme_spread.cpp
+index a52cf3eb6d..839ebf8fb8 100644
+--- a/src/gromacs/ewald/pme_spread.cpp
++++ b/src/gromacs/ewald/pme_spread.cpp
+@@ -213,6 +213,115 @@ static void make_thread_local_ind(const PmeAtomComm* atc, int thread, splinedata
+ /* Macro to force loop unrolling by fixing order.
+  * This gives a significant performance gain.
+  */
++#define CALC_SPLINE4                                                                                     \
++    {                                                                                                    \
++        for (int j = 0; (j < DIM); j++)                                                                  \
++        {                                                                                                \
++            real dr, div;                                                                                \
++            real data0, data1, data2;                                                                    \
++                                                                                                         \
++            dr = xptr[j];                                                                                \
++                                                                                                         \
++            /* dr is relative offset from lower cell limit */                                            \
++                                                                                                         \
++            div = 1.0 / 2.0;                                                                             \
++            data2 = div * dr * dr;                                                                       \
++            data1 = div * ((dr + 1.0) * (1.0 - dr) + (2.0 - dr) * dr);                                   \
++            data0 = div *                            (1.0 - dr) * (1.0 - dr);                            \
++            /* differentiate */                                                                          \
++            dtheta[j][i * 4    ] =       - data0;                                                        \
++            dtheta[j][i * 4 + 1] = data0 - data1;                                                        \
++            dtheta[j][i * 4 + 2] = data1 - data2;                                                        \
++            dtheta[j][i * 4 + 3] = data2;                                                                \
++                                                                                                         \
++            div = 1.0 / 3.0;                                                                             \
++            theta[j][i * 4    ] = div *                       (1.0 - dr) * data0;                        \
++            theta[j][i * 4 + 1] = div * ((dr + 2.0) * data0 + (2.0 - dr) * data1);                       \
++            theta[j][i * 4 + 2] = div * ((dr + 1.0) * data1 + (3.0 - dr) * data2);                       \
++            theta[j][i * 4 + 3] = div * dr * data2;                                                      \
++        }                                                                                                \
++    }
++
++#define CALC_SPLINE5                                                                                     \
++    {                                                                                                    \
++        for (int j = 0; (j < DIM); j++)                                                                  \
++        {                                                                                                \
++            real dr, div;                                                                                \
++            real data0, data1, data2, data3;                                                             \
++                                                                                                         \
++            dr = xptr[j];                                                                                \
++                                                                                                         \
++            /* dr is relative offset from lower cell limit */                                            \
++                                                                                                         \
++            div         = 1.0 / 2.0;                                                                     \
++            data2 = div * dr * dr;                                                                       \
++            data1 = div * ((dr + 1.0) * (1.0 - dr) + (2.0 - dr) * dr);                                   \
++            data0 = div *                            (1.0 - dr) * (1.0 - dr);                            \
++            div         = 1.0 / 3.0;                                                                     \
++            data3 = div * dr * data2;                                                                    \
++            data2 = div * ((dr + 1.0) * data1 + (3.0 - dr) * data2);                                     \
++            data1 = div * ((dr + 2.0) * data0 + (2.0 - dr) * data1);                                     \
++            data0 = div *                       (1.0 - dr) * data0;                                      \
++            /* differentiate */                                                                          \
++            dtheta[j][i * 5    ] =       - data0;                                                        \
++            dtheta[j][i * 5 + 1] = data0 - data1;                                                        \
++            dtheta[j][i * 5 + 2] = data1 - data2;                                                        \
++            dtheta[j][i * 5 + 3] = data2 - data3;                                                        \
++            dtheta[j][i * 5 + 4] = data3;                                                                \
++                                                                                                         \
++            div             = 1.0 / 4.0;                                                                 \
++            theta[j][i * 5    ] = div *                       (1.0 - dr) * data0;                        \
++            theta[j][i * 5 + 1] = div * ((dr + 3.0) * data0 + (2.0 - dr) * data1);                       \
++            theta[j][i * 5 + 2] = div * ((dr + 2.0) * data1 + (3.0 - dr) * data2);                       \
++            theta[j][i * 5 + 3] = div * ((dr + 1.0) * data2 + (4.0 - dr) * data3);                       \
++            theta[j][i * 5 + 4] = div *   dr        * data3;                                             \
++        }                                                                                                \
++    }
++
++#define CALC_SPLINE6                                                                                     \
++    {                                                                                                    \
++        for (int j = 0; (j < DIM); j++)                                                                  \
++        {                                                                                                \
++            real dr, div;                                                                                \
++            real data0, data1, data2, data3, data4;                                                      \
++                                                                                                         \
++            dr = xptr[j];                                                                                \
++                                                                                                         \
++            /* dr is relative offset from lower cell limit */                                            \
++                                                                                                         \
++            div         = 1.0 / 2.0;                                                                     \
++            data2 = div * dr * dr;                                                                       \
++            data1 = div * ((dr + 1.0) * (1.0 - dr) + (2.0 - dr) * dr);                                   \
++            data0 = div *                            (1.0 - dr) * (1.0 - dr);                            \
++            div         = 1.0 / 3.0;                                                                     \
++            data3 = div * dr * data2;                                                                    \
++            data2 = div * ((dr + 1.0) * data1 + (3.0 - dr) * data2);                                     \
++            data1 = div * ((dr + 2.0) * data0 + (2.0 - dr) * data1);                                     \
++            data0 = div *                       (1.0 - dr) * data0;                                      \
++            div         = 1.0 / 4.0;                                                                     \
++            data4 = div * dr * data3;                                                                    \
++            data3 = div * ((dr + 1.0) * data2 + (4.0 - dr) * data3);                                     \
++            data2 = div * ((dr + 2.0) * data1 + (3.0 - dr) * data2);                                     \
++            data1 = div * ((dr + 3.0) * data0 + (2.0 - dr) * data1);                                     \
++            data0 = div *                       (1.0 - dr) * data0;                                      \
++            /* differentiate */                                                                          \
++            dtheta[j][i * 6    ] =       - data0;                                                        \
++            dtheta[j][i * 6 + 1] = data0 - data1;                                                        \
++            dtheta[j][i * 6 + 2] = data1 - data2;                                                        \
++            dtheta[j][i * 6 + 3] = data2 - data3;                                                        \
++            dtheta[j][i * 6 + 4] = data3 - data4;                                                        \
++            dtheta[j][i * 6 + 5] = data4;                                                                \
++                                                                                                         \
++            div         = 1.0 / 5.0;                                                                     \
++            theta[j][i * 6    ] = div *                       (1.0 - dr) * data0;                        \
++            theta[j][i * 6 + 1] = div * ((dr + 4.0) * data0 + (2.0 - dr) * data1);                       \
++            theta[j][i * 6 + 2] = div * ((dr + 3.0) * data1 + (3.0 - dr) * data2);                       \
++            theta[j][i * 6 + 3] = div * ((dr + 2.0) * data2 + (4.0 - dr) * data3);                       \
++            theta[j][i * 6 + 4] = div * ((dr + 1.0) * data3 + (5.0 - dr) * data4);                       \
++            theta[j][i * 6 + 5] = div *   dr        * data4;                                             \
++        }                                                                                                \
++    }
++
+ #define CALC_SPLINE(order)                                                                               \
+     {                                                                                                    \
+         for (int j = 0; (j < DIM); j++)                                                                  \
+@@ -287,8 +396,9 @@ static void make_bsplines(splinevec  theta,
+             assert(order >= 3 && order <= PME_ORDER_MAX);
+             switch (order)
+             {
+-                case 4: CALC_SPLINE(4) break;
+-                case 5: CALC_SPLINE(5) break;
++                case 4: CALC_SPLINE4 break;
++                case 5: CALC_SPLINE5 break;
++                case 6: CALC_SPLINE6 break;
+                 default: CALC_SPLINE(order) break;
+             }
+         }
+-- 
+2.27.0
+

@@ -1,0 +1,15 @@
+--- cpa2002v010/source/setomp.f	2021-11-05 11:19:41.000000000 +0900
++++ /home/rist-v/u02540/Archive/AkaiKKR/setomp.f	2022-01-19 16:39:43.000000000 +0900
+@@ -13,10 +13,10 @@ c     tstart=omp_get_wtime()
+       nthread=numcor()
+       mxth=nthread
+ c     if(nthread .gt. nsw) nthread=nthread-1
+-      call omp_set_num_threads(nthread)
+ c!$omp parallel
+-c     call omp_get_num_threads(nthread)
++c      call omp_get_num_threads(nthread)
+ c!$omp end parallel
++      call omp_set_num_threads(nthread)
+       return
+       entry thread(n)
+ c-----------------------------------------------------------------------
