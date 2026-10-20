@@ -1,0 +1,20 @@
+--- a/src/google/protobuf/io/gzip_stream.h
++++ b/src/google/protobuf/io/gzip_stream.h
+@@ -33,7 +33,7 @@
+ namespace io {
+ 
+ // A ZeroCopyInputStream that reads compressed data through zlib
+-class PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PROTOBUF_EXPORT
++class PROTOBUF_EXPORT PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED
+     GzipInputStream final : public ZeroCopyInputStream {
+  public:
+   // Format key for constructor
+@@ -88,7 +88,7 @@
+   void DoNextOutput(const void** data, int* size);
+ };
+ 
+-class PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED PROTOBUF_EXPORT
++class PROTOBUF_EXPORT PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED
+     GzipOutputStream final : public ZeroCopyOutputStream {
+  public:
+   // Format key for constructor

@@ -1,0 +1,40 @@
+--- a/src/XrdThrottle/XrdThrottleManager.hh
++++ b/src/XrdThrottle/XrdThrottleManager.hh
+@@ -292,14 +292,14 @@
+ protected:
+ 
+ XrdThrottleTimer() :
+-   m_start_time(std::chrono::steady_clock::time_point::min())
++   m_start_time(std::chrono::steady_clock::time_point::min().time_since_epoch().count())
+ {}
+ 
+ XrdThrottleTimer(XrdThrottleManager *manager, int uid) :
+    m_owner(uid),
+    m_timer_list_entry(XrdThrottleManager::GetTimerListHash()),
+    m_manager(manager),
+-   m_start_time(std::chrono::steady_clock::now())
++   m_start_time(std::chrono::steady_clock::now().time_since_epoch().count())
+ {
+    if (!m_manager) {
+       return;
+@@ -317,8 +317,9 @@
+ 
+ std::chrono::steady_clock::duration Reset() {
+    auto now = std::chrono::steady_clock::now();
+-   auto last_start = m_start_time.exchange(now);
+-   return now - last_start;
++   auto last_start = m_start_time.exchange(now.time_since_epoch().count());
++   return now - std::chrono::steady_clock::time_point(
++      std::chrono::steady_clock::duration(last_start));
+ }
+ 
+ private:
+@@ -355,7 +356,7 @@
+    XrdThrottleManager *m_manager{nullptr};
+    XrdThrottleTimer *m_prev{nullptr};
+    XrdThrottleTimer *m_next{nullptr};
+-   XrdSys::RAtomic<std::chrono::steady_clock::time_point> m_start_time;
++   XrdSys::RAtomic<std::chrono::steady_clock::duration::rep> m_start_time;
+ 
+ };
+ 

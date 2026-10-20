@@ -1,0 +1,42 @@
+--- a/src/libs/blueprint/conduit_blueprint_mesh_matset_xforms.cpp
++++ b/src/libs/blueprint/conduit_blueprint_mesh_matset_xforms.cpp
+@@ -68,6 +68,21 @@
+ {
+ //-----------------------------------------------------------------------------
+ 
++// Declare traversal templates before the value-only wrappers use them.
++template <class ForEachValue, class ForEachElement>
++void
++walk_matset_by_element(const MatsetAccessor &m_acc,
++                       ForEachValue &&for_each_value,
++                       ForEachElement &&for_each_element,
++                       const float64 epsilon = CONDUIT_EPSILON);
++
++template <class ForEachValue, class ForEachMaterial>
++void
++walk_matset_by_material(const MatsetAccessor &m_acc,
++                        ForEachValue &&for_each_value,
++                        ForEachMaterial &&for_each_material,
++                        const float64 epsilon = CONDUIT_EPSILON);
++
+ //-----------------------------------------------------------------------------
+ // for each element:
+ //     for each material:
+@@ -100,7 +115,7 @@
+ walk_matset_by_element(const MatsetAccessor &m_acc,
+                        ForEachValue &&for_each_value,
+                        ForEachElement &&for_each_element,
+-                       const float64 epsilon = CONDUIT_EPSILON)
++                       const float64 epsilon)
+ {
+     if (! m_acc.is_element_dominant())
+     {
+@@ -262,7 +277,7 @@
+ walk_matset_by_material(const MatsetAccessor &m_acc,
+                         ForEachValue &&for_each_value,
+                         ForEachMaterial &&for_each_material,
+-                        const float64 epsilon = CONDUIT_EPSILON)
++                        const float64 epsilon)
+ {
+     const index_t num_materials = m_acc.num_mats();
+ 

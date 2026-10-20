@@ -116,8 +116,7 @@ packages:
 # -------------------------------------------------------------------------
   adios2:
     require:
-    - '+mpi'
-    - spec: 'cxxflags="-std=c++14"'
+    - spec: 'cxxflags=="-stdlib=libc++" ldflags=="-stdlib=libc++" ldlibs="-lc++fs"'
       when: '%fj'
   samtools:
     require:
